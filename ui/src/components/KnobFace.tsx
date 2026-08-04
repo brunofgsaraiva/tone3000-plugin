@@ -145,10 +145,11 @@ export function KnobFace({ angleDeg, arcFromDeg, tone }: KnobFaceProps) {
         />
       ))}
 
-      {/* Rotating pointer -- bevel gradient counter-rotated to stay put */}
-      <g
-        style={{ transform: `rotate(${angleDeg}deg)`, transformOrigin: `${CENTER}px ${CENTER}px` }}
-      >
+      {/* Rotating pointer -- bevel gradient counter-rotated to stay put.
+          SVG attribute rotate (not a CSS transform): WebKit resolves CSS
+          transform-origin px against the rendered element, not the viewBox,
+          which threw the pivot outside the knob in the plugin webview. */}
+      <g transform={`rotate(${angleDeg} ${CENTER} ${CENTER})`}>
         <circle
           cx={CENTER}
           cy={CENTER - POINTER_ORBIT}
