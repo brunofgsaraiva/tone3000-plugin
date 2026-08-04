@@ -1,0 +1,23 @@
+.sushi/
+.vscode/
+libs/
+bin/
+build/
+build-arm64/
+build-x86_64/
+release-build/
+vs-build/
+output/
+.DS_Store
+plugin/webview/*
+xcode-build/
+.env
+.env.local
+.env.release
+TONE3000-CERTS/
+*.p12
+*.cer
+*.certSigningRequest
+
+# Private maintainer notes
+notes/
