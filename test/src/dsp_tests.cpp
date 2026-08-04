@@ -31,6 +31,7 @@
 #include "NAM/get_dsp.h"
 #include "json.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -461,9 +462,9 @@ TEST(IrConvolutionTest, TrueStereoDecorrelatesMonoFanoutDoesNot) {
     buffer.copyFrom(0, 0, noise.data(), total);
     buffer.copyFrom(1, 0, noise.data(), total);
     for (int off = 0; off < total; off += blockSize) {
+      const auto frames = static_cast<size_t>(std::min(blockSize, total - off));
       juce::dsp::AudioBlock<float> block(buffer.getArrayOfWritePointers(), 2,
-                                         static_cast<size_t>(off),
-                                         static_cast<size_t>(blockSize));
+                                         static_cast<size_t>(off), frames);
       convolver.process(juce::dsp::ProcessContextReplacing<float>(block));
     }
     return buffer;
@@ -527,9 +528,9 @@ TEST(IrConvolutionTest, IslandedConvolutionInOversampledChainMatchesBaseRate) {
     bufferA.copyFrom(0, 0, multitone.data(), total);
     bufferA.copyFrom(1, 0, multitone.data(), total);
     for (int off = 0; off < total; off += blockSize) {
+      const auto frames = static_cast<size_t>(std::min(blockSize, total - off));
       juce::dsp::AudioBlock<float> block(bufferA.getArrayOfWritePointers(), 2,
-                                         static_cast<size_t>(off),
-                                         static_cast<size_t>(blockSize));
+                                         static_cast<size_t>(off), frames);
       convolverA->process(juce::dsp::ProcessContextReplacing<float>(block));
     }
 
