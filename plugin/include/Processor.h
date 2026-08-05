@@ -514,8 +514,9 @@ private:
   static void setToneOnBlock(ChainBlock& block, int toneId, const juce::String& toneJson,
                              const juce::var& parsedTone);
   // Slim tone projection for getChainState: the UI renders only
-  // id/title/format/gear/first image/user/model names; shipping the full
-  // API payload (model URLs, tags, counts…) per block per sync is waste.
+  // id/title/format/gear/first image/user/model names/share url; shipping
+  // the full API payload (model URLs, tags, counts…) per block per sync is
+  // waste.
   static juce::var makeToneSummary(const juce::var& toneVar);
   static void serializeChainToTree(const std::vector<std::unique_ptr<ChainBlock>>& blocks,
                                    juce::ValueTree& chainState, bool includeModelData);

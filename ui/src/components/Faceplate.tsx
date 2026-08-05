@@ -6,7 +6,7 @@ import { SpreadGroup } from './SpreadControls';
 import { OffsetGroup } from './OffsetControls';
 import { useParameter } from '../hooks/useParameter';
 import type { InputMode } from '../types/chain';
-import { useAutoMeasure } from '../hooks/useAutoMeasure';
+import { useAutoMeasure, type AutoMeasureResult } from '../hooks/useAutoMeasure';
 import { useDismissable } from '../hooks/useDismissable';
 import { HELP, helpProps } from './helpText';
 import { ChromeIconButton } from './ChromeIconButton';
@@ -42,7 +42,7 @@ import {
  * a mono bus. All values are host parameters, so presets/undo get them for free.
  */
 
-const PLATE_HEIGHT = 108;
+export const PLATE_HEIGHT = 108;
 /** Shared faceplate action-button height: center of the secondary knobs. */
 const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
 
@@ -229,9 +229,20 @@ const InputModeButton: React.FC<{
  * visibly moves). Yellow (listening) while armed; click again to cancel;
  * times out after 15 s of silence.
  */
+/** matchedDb is the measured L/R energy diff (positive = left louder), so
+    the correction lifts the quieter side by that amount relative. */
+const balanceDoneMessage = ({ matchedDb = 0 }: AutoMeasureResult): string => {
+  if (Math.abs(matchedDb) < 0.05) return 'Balanced';
+  return `Balanced · ${matchedDb > 0 ? 'R' : 'L'} +${Math.abs(matchedDb).toFixed(1)} dB`;
+};
+
 const AutoBalanceButton: React.FC = () => {
-  const { listening, toggle } = useAutoMeasure('startAutoBalance', 'cancelAutoBalance',
-                                               'pollAutoBalance');
+  const { listening, toggle } = useAutoMeasure(
+    'startAutoBalance',
+    'cancelAutoBalance',
+    'pollAutoBalance',
+    balanceDoneMessage
+  );
   return (
     <ChromeIconButton
       tone="armed"

@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowLeftRight,
-  Check,
   Download,
   Equal,
   FolderClosed,
@@ -32,6 +31,7 @@ import { AvatarImage } from './AvatarFallback';
 import { FormatBadge } from './FormatBadge';
 import { HELP, helpProps } from './helpText';
 import { useBlockNormalizeControlEnabled } from './uiPreferences';
+import { useToast } from './Toast';
 import { ChromeIconButton, ChromeTextButton, chromeIcon } from './ChromeIconButton';
 import {
   BORDER,
@@ -139,8 +139,7 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   // `enabled`).
   const [eqOn, setEqOn] = useState(params.eq?.enabled ?? true);
   const [eqPre, setEqPre] = useState(params.eq?.pre ?? false);
-  const [copied, setCopied] = useState(false);
-  const copiedTimeoutRef = useRef<number | undefined>(undefined);
+  const toast = useToast();
   // True while one of this card's knobs is grabbed; knob prop syncs pause
   // so a stale chain snapshot can't fight the pointer (same pattern as
   // BlockEqView). On release the deferred revision bump resyncs everyone.
@@ -164,7 +163,6 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   }, [params.mix]);
   useEffect(() => setEqOn(params.eq?.enabled ?? true), [params.eq?.enabled]);
   useEffect(() => setEqPre(params.eq?.pre ?? false), [params.eq?.pre]);
-  useEffect(() => () => window.clearTimeout(copiedTimeoutRef.current), []);
 
   const setParam = useCallback(
     (param: BlockParamName, value: number | boolean) =>
@@ -201,12 +199,8 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   }, [actions, blockId]);
 
   const handleShare = useCallback(async () => {
-    if (await actions.shareBlock(block)) {
-      setCopied(true);
-      window.clearTimeout(copiedTimeoutRef.current);
-      copiedTimeoutRef.current = window.setTimeout(() => setCopied(false), 1500);
-    }
-  }, [actions, block]);
+    if (await actions.shareBlock(block)) toast.show('Link Copied');
+  }, [actions, block, toast]);
 
   // Native persists only the block's *active* model; the full catalog (tones
   // max out at 300 models) is fetched client-side in one call per tone.
@@ -272,9 +266,7 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   const showCalibration = isNam && calibrateInput;
   const calibrationActive = block.inputLevelDbu !== undefined;
   const handOffLevelSane =
-    block.outputLevelDbu !== undefined &&
-    block.outputLevelDbu >= -60 &&
-    block.outputLevelDbu <= 60;
+    block.outputLevelDbu !== undefined && block.outputLevelDbu >= -60 && block.outputLevelDbu <= 60;
   const normalizeOverridden = isNam && calibrateInput && namDownstream && handOffLevelSane;
   // Long (reverb-like) IRs load half wet by default (native classifies by
   // kernel length and sets the mix on first load); Alt-click reset on Mix
@@ -462,7 +454,7 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
             </div>
 
             <ChromeIconButton help={HELP.shareTone} onClick={handleShare}>
-              {copied ? <Check /> : <Share />}
+              <Share />
             </ChromeIconButton>
             <ChromeIconButton help={HELP.swapTone} onClick={() => actions.swapBlock(blockId)}>
               <ArrowLeftRight />
@@ -494,318 +486,36 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
             willChange: 'opacity',
           }}
         >
-        {showEq ? (
-          <BlockEqView
-            blockId={blockId}
-            bands={params.eq?.bands ?? []}
-            eqEnabled={eqOn}
-            sampleRate={sampleRate}
-            view={eqView}
-            onSetBand={actions.setBlockEqBand}
-          />
-        ) : (
-          <>
-            {/* Input rail: meter above In knob (Figma: gap 12). */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                flexShrink: 0,
-                gap: '12px',
-              }}
-            >
-              <div style={{ flex: 1, display: 'flex', alignItems: 'center', minHeight: 0 }}>
-                <BlockMeter meterId={meterId.blockIn(blockId)} length={RAIL_METER_HEIGHT} />
-              </div>
-              <KnobControl
-                label="In"
-                value={inputGain}
-                onChange={(val) => {
-                  setInputGain(val);
-                  setParam('inputGain', val);
-                }}
-                onDragStateChange={handleKnobDragState}
-                size={KNOB_SIZE_SECONDARY}
-                labelSize={12}
-                labelBottom={false}
-                thumb="secondary"
-                scale={gainDbScale}
-                defaultValue={0.5}
-                help={HELP.blockIn}
-              />
-            </div>
-
-            {/* Center: image + tone info on top, model picker spanning full width. */}
-            <div
-              style={{
-                flex: 1,
-                minWidth: 0,
-                alignSelf: 'stretch',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-              }}
-            >
+          {showEq ? (
+            <BlockEqView
+              blockId={blockId}
+              bands={params.eq?.bands ?? []}
+              eqEnabled={eqOn}
+              sampleRate={sampleRate}
+              view={eqView}
+              onSetBand={actions.setBlockEqBand}
+            />
+          ) : (
+            <>
+              {/* Input rail: meter above In knob (Figma: gap 12). */}
               <div
                 style={{
                   display: 'flex',
-                  flexDirection: 'row',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '24px',
-                  minWidth: 0,
+                  flexShrink: 0,
+                  gap: '12px',
                 }}
               >
-                {/* Tone image (gear glyph fallback, like the web's ToneCard) */}
-                <div
-                  style={{
-                    position: 'relative',
-                    width: IMAGE_SIZE,
-                    height: IMAGE_SIZE,
-                    borderRadius: '8px',
-                    overflow: 'hidden',
-                    flexShrink: 0,
-                  }}
-                >
-                  <div
-                    style={{
-                      opacity: modelBusy || block.loadFailed ? 0.35 : 1,
-                      transition: 'opacity 0.2s ease',
-                      width: '100%',
-                      height: '100%',
-                    }}
-                  >
-                    <ToneImage
-                      src={tone.images?.[0]}
-                      alt={tone.title}
-                      gear={tone.gear}
-                      boxSize={IMAGE_SIZE}
-                    />
-                  </div>
-                  {(modelBusy || block.loadFailed) && (
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      {block.loadFailed ? (
-                        <RetryLoadBadge onRetry={() => actions.retryLoad(blockId)} />
-                      ) : (
-                        <LoadingDots />
-                      )}
-                    </div>
-                  )}
+                <div style={{ flex: 1, display: 'flex', alignItems: 'center', minHeight: 0 }}>
+                  <BlockMeter meterId={meterId.blockIn(blockId)} length={RAIL_METER_HEIGHT} />
                 </div>
-
-                {/* Tone info: title / gear+badge / counts / creator (Figma gaps). */}
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '16px',
-                    minWidth: 0,
-                    flex: 1,
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '8px',
-                      minWidth: 0,
-                    }}
-                  >
-                    <span
-                      style={{
-                        fontSize: '18px',
-                        color: WHITE,
-                        fontWeight: 700,
-                        lineHeight: 1.4,
-                        display: '-webkit-box',
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: 'vertical',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      {tone.title}
-                    </span>
-
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: '16px',
-                      }}
-                    >
-                      {tone.gear && (
-                        <span style={{ fontSize: '14px', color: MUTED, fontWeight: 400 }}>
-                          {gearLabel(tone.gear)}
-                        </span>
-                      )}
-                      {formatBadge && <FormatBadge label={formatBadge} />}
-                    </div>
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: '24px',
-                    }}
-                  >
-                    <CountStat
-                      icon={<Download size={16} />}
-                      value={tone.downloads_count ?? 0}
-                    />
-                    <CountStat
-                      icon={<FolderClosed size={16} />}
-                      value={tone.models_count ?? 0}
-                    />
-                  </div>
-
-                  {tone.user && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div
-                        style={{
-                          width: '32px',
-                          height: '32px',
-                          borderRadius: '50%',
-                          overflow: 'hidden',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <AvatarImage
-                          src={tone.user.avatar_url}
-                          alt={tone.user.username}
-                          size={32}
-                        />
-                      </div>
-                      <span style={{ fontSize: '14px', color: GRAY, fontWeight: 400 }}>
-                        {tone.user.username}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Switching models re-downloads through native with a Bearer
-                  token, so the picker is inert while signed out. The wrapper
-                  carries the cursor + hint, as the select itself is
-                  pointer-events: none when disabled. */}
-              <div
-                {...(!actions.authenticated ? helpProps(HELP.modelSelectSignedOut) : {})}
-                style={{ cursor: actions.authenticated ? 'default' : 'not-allowed' }}
-              >
-                <ModelSelect
-                  options={modelOptions.map((m) => ({ id: String(m.id), name: m.name }))}
-                  value={String(block.activeModelId)}
-                  onChange={handleModelSelect}
-                  height={36}
-                  disabled={!actions.authenticated}
-                  loading={modelsLoading}
-                  totalCount={modelsTotal}
-                />
-              </div>
-            </div>
-
-            {/* Mix knob: bottom aligned, between the model select and the output rail */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'flex-end',
-                flexShrink: 0,
-              }}
-            >
-              <KnobControl
-                label="Mix"
-                value={mix}
-                onChange={(val) => {
-                  setMix(val);
-                  setParam('mix', val);
-                }}
-                onDragStateChange={handleKnobDragState}
-                size={KNOB_SIZE_SECONDARY}
-                labelSize={12}
-                labelBottom={false}
-                thumb="secondary"
-                defaultValue={defaultMix}
-                help={HELP.blockMix}
-              />
-            </div>
-
-            {/* Output rail: meter above Out (+ optional normalize). The rail
-                right-aligns and the meter wrapper is knob-wide, so the meter
-                stays centered over the Out knob whether or not the normalize
-                button widens the bottom row to its left. */}
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'flex-end',
-                flexShrink: 0,
-                gap: '12px',
-              }}
-            >
-              <div
-                style={{
-                  flex: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minHeight: 0,
-                  width: `${KNOB_SIZE_SECONDARY}px`,
-                }}
-              >
-                <BlockMeter meterId={meterId.blockOut(blockId)} length={RAIL_METER_HEIGHT} />
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  flexDirection: 'row',
-                  alignItems: 'flex-end',
-                  gap: '10px',
-                }}
-              >
-                {isNam && showNormalizeControl && (
-                  /* The wrapper carries the vertical nudge and the overridden
-                     hint: a disabled button swallows hover (no mouseover ever
-                     fires), so pointer-events pass through it to this span
-                     and the hint delegation resolves here instead. */
-                  <span
-                    {...helpProps(
-                      normalizeOverridden ? HELP.blockNormalizeOverridden : HELP.blockNormalize
-                    )}
-                    style={{
-                      display: 'inline-flex',
-                      transform: `translateY(${NORMALIZE_BUTTON_OFFSET}px)`,
-                    }}
-                  >
-                    <ChromeIconButton
-                      tone="outline"
-                      on={normalizeOn}
-                      help={HELP.blockNormalize}
-                      onClick={handleToggleNormalize}
-                      disabled={normalizeOverridden}
-                      style={normalizeOverridden ? { pointerEvents: 'none' } : undefined}
-                    >
-                      <Equal size={ICON_SIZE} />
-                    </ChromeIconButton>
-                  </span>
-                )}
                 <KnobControl
-                  label="Out"
-                  value={outputGain}
+                  label="In"
+                  value={inputGain}
                   onChange={(val) => {
-                    setOutputGain(val);
-                    setParam('outputGain', val);
+                    setInputGain(val);
+                    setParam('inputGain', val);
                   }}
                   onDragStateChange={handleKnobDragState}
                   size={KNOB_SIZE_SECONDARY}
@@ -814,13 +524,289 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                   thumb="secondary"
                   scale={gainDbScale}
                   defaultValue={0.5}
-                  help={isNam || block.irLong ? HELP.blockOut : HELP.blockOutIr}
+                  help={HELP.blockIn}
                 />
               </div>
-            </div>
-          </>
-        )}
-      </div>
+
+              {/* Center: image + tone info on top, model picker spanning full width. */}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  alignSelf: 'stretch',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: '24px',
+                    minWidth: 0,
+                  }}
+                >
+                  {/* Tone image (gear glyph fallback, like the web's ToneCard) */}
+                  <div
+                    style={{
+                      position: 'relative',
+                      width: IMAGE_SIZE,
+                      height: IMAGE_SIZE,
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <div
+                      style={{
+                        opacity: modelBusy || block.loadFailed ? 0.35 : 1,
+                        transition: 'opacity 0.2s ease',
+                        width: '100%',
+                        height: '100%',
+                      }}
+                    >
+                      <ToneImage
+                        src={tone.images?.[0]}
+                        alt={tone.title}
+                        gear={tone.gear}
+                        boxSize={IMAGE_SIZE}
+                      />
+                    </div>
+                    {(modelBusy || block.loadFailed) && (
+                      <div
+                        style={{
+                          position: 'absolute',
+                          inset: 0,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        {block.loadFailed ? (
+                          <RetryLoadBadge onRetry={() => actions.retryLoad(blockId)} />
+                        ) : (
+                          <LoadingDots />
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tone info: title / gear+badge / counts / creator (Figma gaps). */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '16px',
+                      minWidth: 0,
+                      flex: 1,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        minWidth: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: '18px',
+                          color: WHITE,
+                          fontWeight: 700,
+                          lineHeight: 1.4,
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}
+                      >
+                        {tone.title}
+                      </span>
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: '16px',
+                        }}
+                      >
+                        {tone.gear && (
+                          <span style={{ fontSize: '14px', color: MUTED, fontWeight: 400 }}>
+                            {gearLabel(tone.gear)}
+                          </span>
+                        )}
+                        {formatBadge && <FormatBadge label={formatBadge} />}
+                      </div>
+                    </div>
+
+                    <div
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: '24px',
+                      }}
+                    >
+                      <CountStat icon={<Download size={16} />} value={tone.downloads_count ?? 0} />
+                      <CountStat icon={<FolderClosed size={16} />} value={tone.models_count ?? 0} />
+                    </div>
+
+                    {tone.user && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div
+                          style={{
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            overflow: 'hidden',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <AvatarImage
+                            src={tone.user.avatar_url}
+                            alt={tone.user.username}
+                            size={32}
+                          />
+                        </div>
+                        <span style={{ fontSize: '14px', color: GRAY, fontWeight: 400 }}>
+                          {tone.user.username}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Switching models re-downloads through native with a Bearer
+                  token, so the picker is inert while signed out. The wrapper
+                  carries the cursor + hint, as the select itself is
+                  pointer-events: none when disabled. */}
+                <div
+                  {...(!actions.authenticated ? helpProps(HELP.modelSelectSignedOut) : {})}
+                  style={{ cursor: actions.authenticated ? 'default' : 'not-allowed' }}
+                >
+                  <ModelSelect
+                    options={modelOptions.map((m) => ({ id: String(m.id), name: m.name }))}
+                    value={String(block.activeModelId)}
+                    onChange={handleModelSelect}
+                    height={36}
+                    disabled={!actions.authenticated}
+                    loading={modelsLoading}
+                    totalCount={modelsTotal}
+                  />
+                </div>
+              </div>
+
+              {/* Mix knob: bottom aligned, between the model select and the output rail */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'flex-end',
+                  flexShrink: 0,
+                }}
+              >
+                <KnobControl
+                  label="Mix"
+                  value={mix}
+                  onChange={(val) => {
+                    setMix(val);
+                    setParam('mix', val);
+                  }}
+                  onDragStateChange={handleKnobDragState}
+                  size={KNOB_SIZE_SECONDARY}
+                  labelSize={12}
+                  labelBottom={false}
+                  thumb="secondary"
+                  defaultValue={defaultMix}
+                  help={HELP.blockMix}
+                />
+              </div>
+
+              {/* Output rail: meter above Out (+ optional normalize). The rail
+                right-aligns and the meter wrapper is knob-wide, so the meter
+                stays centered over the Out knob whether or not the normalize
+                button widens the bottom row to its left. */}
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'flex-end',
+                  flexShrink: 0,
+                  gap: '12px',
+                }}
+              >
+                <div
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minHeight: 0,
+                    width: `${KNOB_SIZE_SECONDARY}px`,
+                  }}
+                >
+                  <BlockMeter meterId={meterId.blockOut(blockId)} length={RAIL_METER_HEIGHT} />
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'row',
+                    alignItems: 'flex-end',
+                    gap: '10px',
+                  }}
+                >
+                  {isNam && showNormalizeControl && (
+                    /* The wrapper carries the vertical nudge and the overridden
+                     hint: a disabled button swallows hover (no mouseover ever
+                     fires), so pointer-events pass through it to this span
+                     and the hint delegation resolves here instead. */
+                    <span
+                      {...helpProps(
+                        normalizeOverridden ? HELP.blockNormalizeOverridden : HELP.blockNormalize
+                      )}
+                      style={{
+                        display: 'inline-flex',
+                        transform: `translateY(${NORMALIZE_BUTTON_OFFSET}px)`,
+                      }}
+                    >
+                      <ChromeIconButton
+                        tone="outline"
+                        on={normalizeOn}
+                        help={HELP.blockNormalize}
+                        onClick={handleToggleNormalize}
+                        disabled={normalizeOverridden}
+                        style={normalizeOverridden ? { pointerEvents: 'none' } : undefined}
+                      >
+                        <Equal size={ICON_SIZE} />
+                      </ChromeIconButton>
+                    </span>
+                  )}
+                  <KnobControl
+                    label="Out"
+                    value={outputGain}
+                    onChange={(val) => {
+                      setOutputGain(val);
+                      setParam('outputGain', val);
+                    }}
+                    onDragStateChange={handleKnobDragState}
+                    size={KNOB_SIZE_SECONDARY}
+                    labelSize={12}
+                    labelBottom={false}
+                    thumb="secondary"
+                    scale={gainDbScale}
+                    defaultValue={0.5}
+                    help={isNam || block.irLong ? HELP.blockOut : HELP.blockOutIr}
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

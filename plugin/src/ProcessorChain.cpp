@@ -159,6 +159,13 @@ juce::var TONE3000Processor::makeToneSummary(const juce::var& toneVar) {
   // Tone-info stats row (downloads next to the models folder count).
   out->setProperty("downloads_count", tone->getProperty("downloads_count"));
 
+  // Canonical public page URL (title slug + id); the UI's share action
+  // copies it. Skipped when absent (very old stored tone JSON) so the UI
+  // never sees a null; it falls back to the plain /tones/{id} path.
+  const juce::String url = tone->getProperty("url").toString();
+  if (url.isNotEmpty())
+    out->setProperty("url", url);
+
   // Only the first image is ever rendered (block artwork).
   juce::Array<juce::var> images;
   if (auto* imgs = tone->getProperty("images").getArray(); imgs != nullptr && !imgs->isEmpty())

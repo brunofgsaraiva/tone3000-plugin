@@ -13,8 +13,9 @@ import { useUpdateNotice } from '../hooks/useUpdateNotice';
 import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT } from '../hooks/useUiScale';
 import { shouldRestoreToneBrowser } from '../hooks/useT3kSelect';
 import { ChainView } from './ChainView';
-import { Faceplate } from './Faceplate';
+import { Faceplate, PLATE_HEIGHT } from './Faceplate';
 import { HintBar, HINT_HEIGHT } from './HintBar';
+import { ToastProvider } from './Toast';
 import { PluginHeader } from './PluginHeader';
 import { useHintsEnabled } from './helpText';
 import { AppBanner, BANNER_HEIGHT, useAppBanner, type BannerAction } from './AppBanner';
@@ -117,12 +118,14 @@ export const Plugin: React.FC = () => {
   );
   const closeTuner = useCallback(() => handleToggleTuner(false), [handleToggleTuner]);
 
-  // Share: copy the tone's public TONE3000 page URL. Clipboard writes go
-  // through native (webview clipboard APIs are unreliable in JUCE), with the
-  // browser API as a dev-server fallback.
+  // Share: copy the tone's public TONE3000 page URL, the API's canonical
+  // `url` (title slug + id). The plain id path is a fallback for summaries
+  // that predate it. Clipboard writes go through native (webview clipboard
+  // APIs are unreliable in JUCE), with the browser API as a dev-server
+  // fallback.
   const handleShareBlock = useCallback(
     async (block: ToneBlock): Promise<boolean> => {
-      const url = `${T3K_API}/tones/${block.tone.id}`;
+      const url = block.tone.url ?? `${T3K_API}/tones/${block.tone.id}`;
       const ok = await copyToClipboard(url);
       if (ok) return true;
       try {
@@ -289,169 +292,173 @@ export const Plugin: React.FC = () => {
         color: '#ffffff',
       }}
     >
-      {banner && (
-        <AppBanner banner={banner} onAction={handleBannerAction} onDismiss={dismissBanner} />
-      )}
+      {/* One app-wide toast pill, floating above the faceplate. Everything
+          that raises toasts (preset save, share, auto measure) is inside. */}
+      <ToastProvider bottom={PLATE_HEIGHT + (hintsVisible ? HINT_HEIGHT : 0) + 24}>
+        {banner && (
+          <AppBanner banner={banner} onAction={handleBannerAction} onDismiss={dismissBanner} />
+        )}
 
-      <PluginHeader
-        presetStore={presetStore}
-        activePreset={activePreset}
-        stereoEnabled={stereoEnabled}
-        onStereoToggle={actions.setStereoMode}
-        showTuner={showTuner}
-        onToggleTuner={handleToggleTuner}
-        canUndo={canUndo}
-        canRedo={canRedo}
-        onUndo={actions.undo}
-        onRedo={actions.redo}
-        user={session.user}
-        authenticated={authenticated}
-        onOpenSettings={openPluginSettings}
-        onLogin={handleLogin}
-        onLogout={handleLogout}
-      />
+        <PluginHeader
+          presetStore={presetStore}
+          activePreset={activePreset}
+          stereoEnabled={stereoEnabled}
+          onStereoToggle={actions.setStereoMode}
+          showTuner={showTuner}
+          onToggleTuner={handleToggleTuner}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          onUndo={actions.undo}
+          onRedo={actions.redo}
+          user={session.user}
+          authenticated={authenticated}
+          onOpenSettings={openPluginSettings}
+          onLogin={handleLogin}
+          onLogout={handleLogout}
+        />
 
-      {/* Middle Section: Tuner (when toggled on) or Meters + Chain View.
+        {/* Middle Section: Tuner (when toggled on) or Meters + Chain View.
           Horizontal inset is on this band; vertical inset lives only on the
           center column so meters always center in the full header-to-faceplate
           height (never shift when Select opens). Select drops the center's
           bottom pad and uses its own scroll padding instead. */}
-      {showTuner ? (
-        <TunerView onClose={closeTuner} />
-      ) : (
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'row',
-            flex: 1,
-            width: '100%',
-            backgroundColor: '#000000',
-            overflow: 'hidden',
-            minHeight: 0,
-            padding: '0 24px',
-            boxSizing: 'border-box',
-          }}
-        >
+        {showTuner ? (
+          <TunerView onClose={closeTuner} />
+        ) : (
           <div
             style={{
-              height: '100%',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              backgroundColor: '#000000',
-            }}
-          >
-            {/* 358 matches Figma's BLOCK column (title + gap + card). */}
-            <DbMeter type="input" stereo={stereoInput && inputMode === 'stereo'} height={358} />
-          </div>
-
-          {/* Center: the chain gallery, or the tone browser takeover. */}
-          <div
-            style={{
+              flexDirection: 'row',
               flex: 1,
-              height: '100%',
+              width: '100%',
+              backgroundColor: '#000000',
               overflow: 'hidden',
               minHeight: 0,
-              minWidth: 0,
+              padding: '0 24px',
               boxSizing: 'border-box',
-              // Shared 24px under the header; 24px above the faceplate only
-              // for chain/BLOCK; Select fills to the faceplate edge.
-              paddingTop: 24,
-              paddingBottom: showToneBrowser ? 0 : 24,
             }}
           >
-            {showToneBrowser ? (
-              <ToneBrowser
-                client={t3kClient}
-                // Pre-mounted during an OAuth return ('returning'), the client
-                // has no tokens until the callback's code exchange finishes;
-                // hold the stream fetch so it doesn't fire unauthenticated.
-                authPending={session.oauthPhase === 'returning'}
-                authenticated={authenticated}
-                onPickTone={session.selectToneById}
-                onBrowseTone3000={session.startSelectFlow}
-                onSignIn={handleBrowserSignIn}
-                onClose={handleBrowserClose}
-              />
-            ) : (
-              <ChainActionsProvider value={chainActions}>
-                <ChainView
-                  chain={chain}
-                  chainRight={stereoEnabled ? (chainRight ?? []) : null}
-                  branch={stereoEnabled ? branch : null}
-                  sampleRate={sampleRate}
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                backgroundColor: '#000000',
+              }}
+            >
+              {/* 358 matches Figma's BLOCK column (title + gap + card). */}
+              <DbMeter type="input" stereo={stereoInput && inputMode === 'stereo'} height={358} />
+            </div>
+
+            {/* Center: the chain gallery, or the tone browser takeover. */}
+            <div
+              style={{
+                flex: 1,
+                height: '100%',
+                overflow: 'hidden',
+                minHeight: 0,
+                minWidth: 0,
+                boxSizing: 'border-box',
+                // Shared 24px under the header; 24px above the faceplate only
+                // for chain/BLOCK; Select fills to the faceplate edge.
+                paddingTop: 24,
+                paddingBottom: showToneBrowser ? 0 : 24,
+              }}
+            >
+              {showToneBrowser ? (
+                <ToneBrowser
+                  client={t3kClient}
+                  // Pre-mounted during an OAuth return ('returning'), the client
+                  // has no tokens until the callback's code exchange finishes;
+                  // hold the stream fetch so it doesn't fire unauthenticated.
+                  authPending={session.oauthPhase === 'returning'}
+                  authenticated={authenticated}
+                  onPickTone={session.selectToneById}
+                  onBrowseTone3000={session.startSelectFlow}
+                  onSignIn={handleBrowserSignIn}
+                  onClose={handleBrowserClose}
                 />
-              </ChainActionsProvider>
-            )}
-          </div>
+              ) : (
+                <ChainActionsProvider value={chainActions}>
+                  <ChainView
+                    chain={chain}
+                    chainRight={stereoEnabled ? (chainRight ?? []) : null}
+                    branch={stereoEnabled ? branch : null}
+                    sampleRate={sampleRate}
+                  />
+                </ChainActionsProvider>
+              )}
+            </div>
 
-          <div
-            style={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexShrink: 0,
-              backgroundColor: '#000000',
-            }}
-          >
-            <DbMeter type="output" stereo={stereoOutput} height={358} labelsPosition="right" />
+            <div
+              style={{
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                backgroundColor: '#000000',
+              }}
+            >
+              <DbMeter type="output" stereo={stereoOutput} height={358} labelsPosition="right" />
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Pinned faceplate at the bottom (gains, gate, tone stack), with the
+        {/* Pinned faceplate at the bottom (gains, gate, tone stack), with the
           hint strip under it (hidden entirely when hints are off). */}
-      <Faceplate
-        stereoOutput={stereoOutput}
-        stereoChains={stereoEnabled}
-        stereoInput={stereoInput}
-        branched={branch != null}
-        inputMode={inputMode}
-        onInputModeChange={actions.setInputMode}
-      />
-      <HintBar namFullSize={namFullSize} onNamFullSizeChange={actions.setNamFullSize} />
-
-      {/* Settings takeover, mounted only while open so its parameter
-          subscriptions and screen state don't run behind the main UI. */}
-      {showSettings && (
-        <Settings
-          onClose={() => setShowSettings(false)}
-          standalone={standalone}
-          device={audioDevice}
-          initialTab={settingsTabRef.current}
-          version={localVersion}
-          update={update}
-          namFullSize={namFullSize}
-          onNamFullSizeChange={actions.setNamFullSize}
-          multiCore={multiCore}
-          onMultiCoreChange={actions.setMultiCore}
-          chain={chain}
-          chainRight={chainRight}
+        <Faceplate
+          stereoOutput={stereoOutput}
+          stereoChains={stereoEnabled}
+          stereoInput={stereoInput}
+          branched={branch != null}
+          inputMode={inputMode}
+          onInputModeChange={actions.setInputMode}
         />
-      )}
+        <HintBar namFullSize={namFullSize} onNamFullSizeChange={actions.setNamFullSize} />
 
-      {/* OAuth callback overlay: covers the chain UI while we resolve the
+        {/* Settings takeover, mounted only while open so its parameter
+          subscriptions and screen state don't run behind the main UI. */}
+        {showSettings && (
+          <Settings
+            onClose={() => setShowSettings(false)}
+            standalone={standalone}
+            device={audioDevice}
+            initialTab={settingsTabRef.current}
+            version={localVersion}
+            update={update}
+            namFullSize={namFullSize}
+            onNamFullSizeChange={actions.setNamFullSize}
+            multiCore={multiCore}
+            onMultiCoreChange={actions.setMultiCore}
+            chain={chain}
+            chainRight={chainRight}
+          />
+        )}
+
+        {/* OAuth callback overlay: covers the chain UI while we resolve the
           tokens + tone after returning from tone3000.com, and surfaces any
           OAuth error (callback failures, failed-navigation recovery) with a
           retry that restarts whichever flow actually failed. */}
-      <OAuthOverlay
-        phase={session.oauthPhase}
-        error={session.oauthError}
-        onRetry={session.retryFlow}
-        onDismiss={session.clearOauthError}
-      />
+        <OAuthOverlay
+          phase={session.oauthPhase}
+          error={session.oauthError}
+          onRetry={session.retryFlow}
+          onDismiss={session.clearOauthError}
+        />
 
-      {/* Offline gate for internet-dependent actions (add / swap / login). */}
-      <OfflineModal
-        open={internetGate.offlineModalOpen}
-        onRetry={internetGate.retry}
-        onDismiss={internetGate.dismiss}
-      />
+        {/* Offline gate for internet-dependent actions (add / swap / login). */}
+        <OfflineModal
+          open={internetGate.offlineModalOpen}
+          onRetry={internetGate.retry}
+          onDismiss={internetGate.dismiss}
+        />
 
-      {/* Update available, below OAuth/offline (z 3000) so those always win. */}
-      <UpdateNotice notice={updateNotice} onRemindLater={remindLater} />
+        {/* Update available, below OAuth/offline (z 3000) so those always win. */}
+        <UpdateNotice notice={updateNotice} onRemindLater={remindLater} />
+      </ToastProvider>
     </div>
   );
 };

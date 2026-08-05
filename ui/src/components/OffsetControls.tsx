@@ -3,15 +3,10 @@ import { Equal, Power } from 'lucide-react';
 import { KnobControl } from './KnobControl';
 import { offsetMsScale } from './knobScale';
 import { useParameter } from '../hooks/useParameter';
-import { useAutoMeasure } from '../hooks/useAutoMeasure';
+import { useAutoMeasure, type AutoMeasureResult } from '../hooks/useAutoMeasure';
 import { HELP } from './helpText';
 import { ChromeIconButton } from './ChromeIconButton';
-import {
-  ICON_SIZE,
-  KNOB_SIZE_PRIMARY,
-  KNOB_SIZE_SECONDARY,
-  faceplateChromeLift,
-} from './theme';
+import { ICON_SIZE, KNOB_SIZE_PRIMARY, KNOB_SIZE_SECONDARY, faceplateChromeLift } from './theme';
 import { IMAGE_GROUP_WIDTH } from './SpreadControls';
 
 /**
@@ -46,9 +41,21 @@ const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
  * (listening) while armed; click again to cancel; times out after 15 s of
  * silence or an untrustworthy measurement.
  */
+/** matchedMs is the measured inter-chain lag (positive = the right chain
+    gets delayed), mirroring the Offset knob move. Below the native
+    "already aligned" floor no correction was applied. */
+const offsetDoneMessage = ({ matchedMs = 0 }: AutoMeasureResult): string => {
+  if (Math.abs(matchedMs) < 0.05) return 'Aligned';
+  return `Aligned · ${matchedMs > 0 ? 'R' : 'L'} +${Math.abs(matchedMs).toFixed(1)} ms`;
+};
+
 const AutoOffsetButton: React.FC = () => {
-  const { listening, toggle } = useAutoMeasure('startAutoOffset', 'cancelAutoOffset',
-                                              'pollAutoOffset');
+  const { listening, toggle } = useAutoMeasure(
+    'startAutoOffset',
+    'cancelAutoOffset',
+    'pollAutoOffset',
+    offsetDoneMessage
+  );
   return (
     <ChromeIconButton
       tone="armed"

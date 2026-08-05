@@ -26,6 +26,10 @@ AppId={{7B5C3F1E-9D24-4A8B-B1E6-3FD82A6C41B7}
 AppName=TONE3000
 AppVersion={#Version}
 AppPublisher=TONE3000
+AppPublisherURL=https://www.tone3000.com
+AppSupportURL=https://github.com/tone-3000/plugin/issues
+AppUpdatesURL=https://github.com/tone-3000/plugin/releases
+VersionInfoVersion={#Version}
 DefaultDirName={autopf64}\TONE3000
 DefaultGroupName=TONE3000
 OutputDir={#OutputDir}
@@ -34,7 +38,19 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 Compression=lzma2
 SolidCompression=yes
+; InfoBeforeFile (not LicenseFile): shows the MIT text on an Information
+; page without forcing an "I accept" step.
+InfoBeforeFile=..\..\..\LICENSE
+; Branding: dark T3K banner on the welcome/finish pages, mark chip on the
+; inner-page header, and the T3K icon on the setup exe itself. The BMP pairs
+; are 100% / 200% DPI variants rendered from design/tone3000-wordmark.svg and
+; ui/public/t3k-mark.svg (BMP, not PNG: PNG needs Inno 6.5.2+).
 WizardStyle=modern
+DisableWelcomePage=no
+WizardImageFile=wizard-image-100.bmp,wizard-image-200.bmp
+WizardSmallImageFile=wizard-small-100.bmp,wizard-small-200.bmp
+SetupIconFile=tone3000.ico
+UninstallDisplayIcon={app}\TONE3000.exe
 DisableDirPage=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin

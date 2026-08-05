@@ -54,6 +54,8 @@ export interface Tone {
   /** Gear makes from the API; the plugin never reads them. */
   makes: unknown[];
   tags: Tag[];
+  /** Canonical public page URL (title slug + id); the share action copies it. */
+  url: string;
 }
 
 export interface T3kDownloadEvent {

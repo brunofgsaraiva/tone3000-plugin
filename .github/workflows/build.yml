@@ -366,6 +366,43 @@ jobs:
           path: build/TONE3000-v*-macos-universal.pkg
           if-no-files-found: error
 
+      # Windows signing uses Azure Artifact Signing (the Windows analog of
+      # Developer ID + notarization: Microsoft-managed cert, key held by the
+      # service, RFC 3161 timestamp). Bails out gracefully if the Azure
+      # secrets are not configured (e.g. PRs from forks); the artifacts are
+      # then unsigned, like the macOS ad-hoc fallback.
+      - name: Check Windows signing config
+        id: winsign
+        if: matrix.os == 'windows'
+        shell: pwsh
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+        run: |
+          $enabled = if ($env:AZURE_TENANT_ID) { 'true' } else { 'false' }
+          "enabled=$enabled" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          if ($enabled -eq 'false') {
+            Write-Host "Signing secrets not configured; artifacts will be unsigned."
+          }
+
+      # Sign the binaries users actually run before they are packaged (the
+      # .vst3 and .clap are PE DLLs, signable like any exe).
+      - name: Sign binaries (Windows)
+        if: matrix.os == 'windows' && steps.winsign.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\build\plugin\TONE3000_artefacts\${{ env.BUILD_TYPE }}
+          files-folder-recurse: true
+          files-folder-filter: exe,vst3,clap
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
       # Windows: build a setup.exe with Inno Setup. It ships on current
       # windows-latest images; install via choco if a future image drops it.
       - name: Build installer (Windows)
@@ -381,6 +418,22 @@ jobs:
             /DOutputDir="$env:GITHUB_WORKSPACE\build" `
             script\installer\windows\tone3000.iss
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Sign installer (Windows)
+        if: matrix.os == 'windows' && steps.winsign.outputs.enabled == 'true'
+        uses: azure/artifact-signing-action@v2
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ secrets.AZURE_SIGNING_ENDPOINT }}
+          signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ secrets.AZURE_SIGNING_PROFILE }}
+          files-folder: ${{ github.workspace }}\build
+          files-folder-filter: '*-setup.exe'
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
 
       - name: Upload artifacts (Windows)
         if: matrix.os == 'windows' && success()

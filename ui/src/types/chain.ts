@@ -118,6 +118,9 @@ export interface ToneSummary {
   a2_models_count: number;
   /** Public download tally for the tone-info stats row. */
   downloads_count: number;
+  /** Canonical public page URL (title slug + id) for the share action.
+      Absent on tones stored before native shipped it. */
+  url?: string;
 }
 
 /** A real tone block in the chain. */

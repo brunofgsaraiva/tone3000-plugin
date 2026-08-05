@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import type { ActivePreset, PresetInfo } from '../types/chain';
 import { useDismissable } from '../hooks/useDismissable';
+import { useToast } from './Toast';
 import { HELP, helpProps } from './helpText';
 import { BORDER, GRAY } from './theme';
 
@@ -106,6 +107,7 @@ export const PresetBar: React.FC<PresetBarProps> = ({
   // Reorder mode: rows swap rename/delete for up/down arrows. Arrows only
   // make sense on the full list, so they hide while a search filter is on.
   const [reordering, setReordering] = useState(false);
+  const toast = useToast();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const closePanels = useCallback(() => setOpen('none'), []);
   useDismissable(open !== 'none', containerRef, closePanels);
@@ -128,9 +130,10 @@ export const PresetBar: React.FC<PresetBarProps> = ({
   const handleSave = useCallback(async () => {
     const name = saveName.trim();
     if (!name) return;
-    await onSave(name);
+    const saved = await onSave(name);
     setOpen('none');
-  }, [saveName, onSave]);
+    if (saved) toast.show('Preset Saved');
+  }, [saveName, onSave, toast]);
 
   // Prev/next step through the list in order, wrapping at the ends. With no
   // active preset, › starts at the first and ‹ at the last.

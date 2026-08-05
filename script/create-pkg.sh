@@ -209,10 +209,7 @@ fi
 # 4. Generate distribution.xml for the components we actually built
 
 DIST_XML="$COMPONENTS_DIR/distribution.xml"
-HAS_WELCOME=0
-HAS_CONCLUSION=0
-[[ -f "$INSTALLER_DIR/Resources/welcome.html"    ]] && HAS_WELCOME=1
-[[ -f "$INSTALLER_DIR/Resources/conclusion.html" ]] && HAS_CONCLUSION=1
+RES="$INSTALLER_DIR/Resources"
 
 {
   echo '<?xml version="1.0" encoding="utf-8"?>'
@@ -221,8 +218,20 @@ HAS_CONCLUSION=0
   echo '  <options customize="always" allow-external-scripts="no" rootVolumeOnly="false" />'
   echo '  <domains enable_localSystem="true" />'
 
-  [[ $HAS_WELCOME    -eq 1 ]] && echo '  <welcome file="welcome.html" mime-type="text/html" />'
-  [[ $HAS_CONCLUSION -eq 1 ]] && echo '  <conclusion file="conclusion.html" mime-type="text/html" />'
+  # Branding: a logo-only image (transparent elsewhere) anchored bottom-left
+  # under the sidebar, so the window keeps its native appearance. Each TIFF
+  # carries 1x + 2x reps; the light variant puts the wordmark on a black chip.
+  # To regenerate: rasterize design/tone3000-wordmark.svg (140 pt wide, 16/14
+  # pt margins), then pair the sizes with `tiffutil -cathidpicheck 1x 2x`.
+  [[ -f "$RES/background.tiff" ]] &&
+    echo '  <background file="background.tiff" mime-type="image/tiff" alignment="bottomleft" scaling="none" />'
+  [[ -f "$RES/background-dark.tiff" ]] &&
+    echo '  <background-darkAqua file="background-dark.tiff" mime-type="image/tiff" alignment="bottomleft" scaling="none" />'
+
+  # readme (not license): shows the MIT text without forcing an Agree dialog.
+  [[ -f "$RES/welcome.html"    ]] && echo '  <welcome file="welcome.html" mime-type="text/html" />'
+  [[ -f "$RES/readme.html"     ]] && echo '  <readme file="readme.html" mime-type="text/html" />'
+  [[ -f "$RES/conclusion.html" ]] && echo '  <conclusion file="conclusion.html" mime-type="text/html" />'
 
   echo '  <choices-outline>'
   echo '    <line choice="standalone" />'
