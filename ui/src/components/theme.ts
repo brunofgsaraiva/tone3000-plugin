@@ -181,10 +181,14 @@ export const segmentedCellStyle = (icon = false): CSSProperties => ({
   boxSizing: 'border-box',
 });
 
+/** Knob-to-label gap. faceplateChromeLift and the Spread/Align advert
+    vertical centering are built around this. */
+export const KNOB_LABEL_GAP = 8;
+
 /**
  * Vertical lift for a chrome icon box sitting in a bottom-aligned faceplate
  * row: from the shared label baseline up to the center of a secondary knob.
- * (10px gap + 14px label slot + radius minus half the box.)
+ * (gap + 14px label + radius minus half the box.)
  */
 export const faceplateChromeLift = (secondaryKnobSize: number) =>
-  -(10 + 14 + secondaryKnobSize / 2 - ICON_BOX_SIZE / 2);
+  -(KNOB_LABEL_GAP + 14 + secondaryKnobSize / 2 - ICON_BOX_SIZE / 2);

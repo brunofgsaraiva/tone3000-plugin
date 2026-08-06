@@ -6,8 +6,9 @@ Install (recommended)
   ./install.sh
 
 This installs the VST3 to ~/.vst3, the LV2 to ~/.lv2, the CLAP to ~/.clap
-and the standalone app to ~/.local/bin, checking for required system
-libraries first and offering to install any that are missing.
+and the standalone app to ~/.local/bin (with a desktop entry and icon so it
+shows up in your applications menu), checking for required system libraries
+first and offering to install any that are missing.
 
   ./install.sh --check       check dependencies only, install nothing
   ./install.sh --uninstall   remove a previous install

@@ -289,13 +289,13 @@ public:
   void cancelAutoBalance();
   juce::var pollAutoBalance();  // { state: "idle"|"listening"|"done"|"timeout", matchedDb? }
 
-  // Auto offset: one-shot chain time alignment (stereo chain mode).
+  // Auto align: one-shot chain time alignment (stereo chain mode).
   // Same listening UX as auto balance, but the measurement is a cross-
-  // correlation of the two raw chain outputs (captured pre-offset, so it's
+  // correlation of the two raw chain outputs (captured pre-align, so it's
   // the chains' absolute misalignment) instead of an energy ratio; see
   // AutoOffset.h for the full rationale and threading model. pollAutoOffset()
-  // applies the measured lag to the stereoOffsetTime parameter (and powers
-  // the offset on) when the measurement is trustworthy.
+  // applies the measured lag to the alignOffset parameter (and powers
+  // Align on) when the measurement is trustworthy.
   void startAutoOffset();
   void cancelAutoOffset();
   juce::var pollAutoOffset();  // { state: "idle"|"listening"|"done"|"timeout", matchedMs?, progress? }
@@ -747,10 +747,12 @@ private:
     std::atomic<float>* spreadEnabled = nullptr;
     std::atomic<float>* spreadOffset = nullptr;
     std::atomic<float>* spreadWobble = nullptr;
-    std::atomic<float>* stereoOffsetEnabled = nullptr;
-    std::atomic<float>* stereoOffsetTime = nullptr;
+    std::atomic<float>* alignEnabled = nullptr;
+    std::atomic<float>* alignOffset = nullptr;
     std::atomic<float>* chainPanLeft = nullptr;
     std::atomic<float>* chainPanRight = nullptr;
+    std::atomic<float>* chainSoloLeft = nullptr;
+    std::atomic<float>* chainSoloRight = nullptr;
     std::atomic<float>* toneBass = nullptr;
     std::atomic<float>* toneMid = nullptr;
     std::atomic<float>* toneTreble = nullptr;
@@ -785,10 +787,12 @@ private:
   bool cacheSpreadEnabled = false;
   float cacheSpreadOffset = 0.8125f;  // bipolar, 0.5 = center = 0 ms; default +15 ms R
   float cacheSpreadWobble = 0.25f;   // 0..1 of the ±1.2 ms wobble range
-  bool cacheStereoOffsetEnabled = false;
-  float cacheStereoOffsetTime = 0.5f;  // bipolar, 0.5 = center = 0 ms
+  bool cacheAlignEnabled = false;
+  float cacheAlignOffset = 0.5f;  // bipolar, 0.5 = center = 0 ms
   float cacheChainPanLeft = 0.0f;
   float cacheChainPanRight = 1.0f;
+  bool cacheChainSoloLeft = false;
+  bool cacheChainSoloRight = false;
   float cacheBassTone = 5.0f;
   float cacheMidTone = 5.0f;
   float cacheTrebleTone = 5.0f;
@@ -883,13 +887,13 @@ private:
   //  - Mono mode: the Spread builds a stereo image from the single chain
   //    (an ADT-style double; see Spread.h). Its output correlation ships to
   //    the UI via getMeterLevels.
-  //  - Stereo mode: the StereoOffset time-aligns the two chains (see
+  //  - Stereo mode: Align time-aligns the two chains via StereoOffset (see
   //    StereoOffset.h).
   Spread spread;
   StereoOffset stereoOffset;
 
-  // Auto-offset measurement engine (state machine + capture + analysis all
-  // live in the class; the processor just taps the audio and applies the
+  // Auto-align measurement engine (state machine + capture + analysis all
+  // live in AutoOffset; the processor just taps the audio and applies the
   // result; see the public startAutoOffset/pollAutoOffset above).
   AutoOffset autoOffset;
 

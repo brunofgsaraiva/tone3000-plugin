@@ -96,6 +96,16 @@ target_compile_options(NAM PRIVATE -fPIC)
 # A2 full / A2 lite models use the hand-optimized path when config matches (see NeuralAmpModelerCore).
 target_compile_definitions(NAM PRIVATE NAM_ENABLE_A2_FAST)
 
+# macOS shows the icns verbatim (no system mask before Tahoe), so its artwork
+# bakes in Apple's icon grid: a rounded-rect chip with margins on a transparent
+# canvas. Windows wants the full-bleed square. Both derive from the t3k mark;
+# regen notes in design/app-icon-macos.svg.
+if(APPLE)
+    set(_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/icon/icon-macos.png")
+else()
+    set(_app_icon "${CMAKE_CURRENT_SOURCE_DIR}/icon/icon.png")
+endif()
+
 juce_add_plugin(${PROJECT_NAME}
     COMPANY_NAME TONE3000
     PLUGIN_NAME ${PLUGIN_NAME}
@@ -120,8 +130,7 @@ juce_add_plugin(${PROJECT_NAME}
     # Bluetooth MIDI pairing dialog touches CoreBluetooth.
     BLUETOOTH_PERMISSION_ENABLED TRUE
     BLUETOOTH_PERMISSION_TEXT "TONE3000 uses Bluetooth to find and pair Bluetooth MIDI controllers."
-    ICON_BIG "${CMAKE_CURRENT_SOURCE_DIR}/icon/icon.png"
-    ICON_SMALL "${CMAKE_CURRENT_SOURCE_DIR}/icon/icon.png"
+    ICON_BIG "${_app_icon}"
 )
 
 target_sources(${PROJECT_NAME}

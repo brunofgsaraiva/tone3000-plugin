@@ -85,10 +85,12 @@ void TONE3000Processor::resolveParamRefs() {
   paramRefs.spreadEnabled = get("spreadEnabled");
   paramRefs.spreadOffset = get("spreadOffset");
   paramRefs.spreadWobble = get("spreadWobble");
-  paramRefs.stereoOffsetEnabled = get("stereoOffsetEnabled");
-  paramRefs.stereoOffsetTime = get("stereoOffsetTime");
+  paramRefs.alignEnabled = get("alignEnabled");
+  paramRefs.alignOffset = get("alignOffset");
   paramRefs.chainPanLeft = get("chainPanLeft");
   paramRefs.chainPanRight = get("chainPanRight");
+  paramRefs.chainSoloLeft = get("chainSoloLeft");
+  paramRefs.chainSoloRight = get("chainSoloRight");
   paramRefs.toneBass = get("toneBass");
   paramRefs.toneMid = get("toneMid");
   paramRefs.toneTreble = get("toneTreble");
@@ -155,14 +157,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout TONE3000Processor::createPar
   layout.add(std::make_unique<juce::AudioParameterFloat>(
       juce::ParameterID{"spreadWobble", 15}, "spreadWobble", 0.0f, 1.0f, 0.25f));
 
-  // Stereo offset (stereo chain mode; see StereoOffset.h): corrective
-  // alignment delay between the two chains, same bipolar encoding as the
-  // spread offset. Defaults to center; a corrective tool has no useful
-  // nonzero default.
+  // Align (stereo chain mode; see StereoOffset.h): corrective alignment
+  // delay between the two chains, same bipolar encoding as the spread
+  // offset. Defaults to center; a corrective tool has no useful nonzero
+  // default. Off by default; the UI shows an advert pill until powered on.
   layout.add(std::make_unique<juce::AudioParameterBool>(
-      juce::ParameterID{"stereoOffsetEnabled", 16}, "stereoOffsetEnabled", false));
+      juce::ParameterID{"alignEnabled", 16}, "alignEnabled", false));
   layout.add(std::make_unique<juce::AudioParameterFloat>(
-      juce::ParameterID{"stereoOffsetTime", 17}, "stereoOffsetTime", 0.0f, 1.0f, 0.5f));
+      juce::ParameterID{"alignOffset", 17}, "alignOffset", 0.0f, 1.0f, 0.5f));
 
   // Stereo-mode chain pans: constant-power positions for the Left/Right
   // chain outputs (0 = hard left, 1 = hard right). The UI constrains the
@@ -176,6 +178,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout TONE3000Processor::createPar
       juce::ParameterID{"chainPanRight", 19}, "chainPanRight", 0.0f, 1.0f, 1.0f));
   layout.add(std::make_unique<juce::AudioParameterBool>(
       juce::ParameterID{"chainPanLinked", 20}, "chainPanLinked", true));
+
+  // Per-chain solos (stereo chain mode): audition one chain by muting the
+  // other inside the image matrix (see imageMatrixGains). Monitoring state,
+  // not tone, so presets don't capture them.
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID{"chainSoloLeft", 23}, "chainSoloLeft", false));
+  layout.add(std::make_unique<juce::AudioParameterBool>(
+      juce::ParameterID{"chainSoloRight", 24}, "chainSoloRight", false));
 
   // Oversampling (Advanced settings; see ChainOversampler.h). Deliberately
   // not automatable: a factor change rebuilds every NAM engine and
@@ -448,15 +458,19 @@ static float balanceChainGain(float balance, int chain) {
 // output bus; an output-channel trim couldn't re-balance the chains once
 // the pan blend has mixed them. When pan is inactive (mono+spread) the pan
 // part is the identity and the matrix reduces to a diagonal L/R tilt.
+// A solo zeroes the other chain's trim (engaging one clears the other in
+// the UI; both on via MIDI leaves both audible). Riding the matrix
+// smoothers makes the mute click-free.
 struct ImageGains { float lToL, lToR, rToL, rToR; };
-static ImageGains imageMatrixGains(bool panActive, float balance, float panLeft, float panRight) {
+static ImageGains imageMatrixGains(bool panActive, float balance, float panLeft, float panRight,
+                                   bool soloLeft, bool soloRight) {
   float pLtoL = 1.0f, pLtoR = 0.0f, pRtoL = 0.0f, pRtoR = 1.0f;
   if (panActive) {
     std::tie(pLtoL, pLtoR) = constantPowerPanGains(panLeft);
     std::tie(pRtoL, pRtoR) = constantPowerPanGains(panRight);
   }
-  const float balL = balanceChainGain(balance, 0);
-  const float balR = balanceChainGain(balance, 1);
+  const float balL = soloRight && !soloLeft ? 0.0f : balanceChainGain(balance, 0);
+  const float balR = soloLeft && !soloRight ? 0.0f : balanceChainGain(balance, 1);
   return {balL * pLtoL, balL * pLtoR, balR * pRtoL, balR * pRtoR};
 }
 
@@ -634,7 +648,9 @@ void TONE3000Processor::prepareToPlay(double sampleRate, int samplesPerBlock) {
     const bool isStereo = stereoEnabled.load();
     const bool applyBalance = isStereo || cacheSpreadEnabled;
     const auto g = imageMatrixGains(isStereo, applyBalance ? cacheOutputBalance : 0.5f,
-                                    cacheChainPanLeft, cacheChainPanRight);
+                                    cacheChainPanLeft, cacheChainPanRight,
+                                    isStereo && cacheChainSoloLeft,
+                                    isStereo && cacheChainSoloRight);
     for (auto* smoother : {&imageGainLtoL, &imageGainLtoR, &imageGainRtoL, &imageGainRtoR})
       smoother->reset(sampleRate, 0.02);
     imageGainLtoL.setCurrentAndTargetValue(g.lToL);
@@ -784,7 +800,7 @@ void TONE3000Processor::updateCachedParameters() {
   updateFloat(cacheOutputBalance, paramRefs.outputBalance);
   updateFloat(cacheSpreadOffset, paramRefs.spreadOffset);
   updateFloat(cacheSpreadWobble, paramRefs.spreadWobble);
-  updateFloat(cacheStereoOffsetTime, paramRefs.stereoOffsetTime);
+  updateFloat(cacheAlignOffset, paramRefs.alignOffset);
   updateFloat(cacheChainPanLeft, paramRefs.chainPanLeft);
   updateFloat(cacheChainPanRight, paramRefs.chainPanRight);
   updateFloat(cacheBassTone, paramRefs.toneBass, true);
@@ -799,7 +815,9 @@ void TONE3000Processor::updateCachedParameters() {
   cacheGateEnabled = loadBool(paramRefs.gateEnabled);
   cacheToneEqEnabled = loadBool(paramRefs.toneEqEnabled);
   cacheSpreadEnabled = loadBool(paramRefs.spreadEnabled);
-  cacheStereoOffsetEnabled = loadBool(paramRefs.stereoOffsetEnabled);
+  cacheAlignEnabled = loadBool(paramRefs.alignEnabled);
+  cacheChainSoloLeft = loadBool(paramRefs.chainSoloLeft);
+  cacheChainSoloRight = loadBool(paramRefs.chainSoloRight);
 }
 
 // ##########################
@@ -1423,8 +1441,8 @@ void TONE3000Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
   //    chain output (an ADT-style double, see Spread.h). Engage/bypass is
   //    its internal ~25 ms crossfade against the untouched buffer; fully
   //    skipped once idle.
-  //  - Stereo mode: the StereoOffset delays one chain in place, purely
-  //    corrective alignment (see StereoOffset.h): 0 ms = identity, all
+  //  - Stereo mode: Align delays one chain in place via StereoOffset,
+  //    purely corrective (see StereoOffset.h): 0 ms = identity, all
   //    transitions glide through zero; fully skipped once idle.
   //  - The opposite mode's engine is force-idled (no fade needed): mode
   //    switches always ride the chain-edit fade above, so the hard stop
@@ -1440,15 +1458,15 @@ void TONE3000Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     if (isStereo) {
       spread.forceIdle();
 
-      // Auto offset listening tap: the raw chain outputs BEFORE the offset
+      // Auto-align listening tap: the raw chain outputs BEFORE the align
       // delay, so the measurement is the chains' absolute misalignment,
       // independent of whatever the knob currently says. Zero work unless
       // armed.
       if (autoOffset.state() == AutoOffset::State::Listening)
         autoOffset.capture(buffer, numSamples);
 
-      stereoOffset.setTarget(StereoOffsetParams::fromNormalized(cacheStereoOffsetTime),
-                             cacheStereoOffsetEnabled);
+      stereoOffset.setTarget(StereoOffsetParams::fromNormalized(cacheAlignOffset),
+                             cacheAlignEnabled);
       if (stereoOffset.isRunning())
         stereoOffset.process(buffer);
     } else {
@@ -1471,13 +1489,16 @@ void TONE3000Processor::processBlock(juce::AudioBuffer<float>& buffer, juce::Mid
     // Balance + pan matrix. Balance is forced center whenever the output
     // image isn't actually stereo (mono mode without spread), so a leftover
     // Bal setting from a prior session can't skew a mono (identical L/R)
-    // bus, matching the UI hiding the knob. All four gains are smoothed so
-    // knob moves AND the balance on/off gating (spread/stereo toggles)
-    // glide instead of stepping (pop).
+    // bus, matching the UI hiding the knob. Solos are likewise gated to
+    // stereo mode: in mono+spread the two channels are one chain's double,
+    // not chains to audition. All four gains are smoothed so knob moves AND
+    // the balance/solo on/off gating glide instead of stepping (pop).
     if (numChannels >= 2) {
       const bool applyBalance = isStereo || cacheSpreadEnabled;
       const auto g = imageMatrixGains(isStereo, applyBalance ? cacheOutputBalance : 0.5f,
-                                      cacheChainPanLeft, cacheChainPanRight);
+                                      cacheChainPanLeft, cacheChainPanRight,
+                                      isStereo && cacheChainSoloLeft,
+                                      isStereo && cacheChainSoloRight);
       imageGainLtoL.setTargetValue(g.lToL);
       imageGainLtoR.setTargetValue(g.lToR);
       imageGainRtoL.setTargetValue(g.rToL);
@@ -1735,13 +1756,13 @@ juce::var TONE3000Processor::pollAutoBalance() {
 }
 
 // #########################
-// AUTO OFFSET (one-shot chain time alignment, stereo chain mode)
+// AUTO ALIGN (one-shot chain time alignment, stereo chain mode)
 // #########################
 // Same "click, play for a couple of seconds, done" flow as auto balance and
 // for the same reasons (see the auto-balance section above); the measurement
 // itself (capture, silence gating, timeout, FFT cross-correlation) lives in
 // AutoOffset (AutoOffset.h). The processor's share is the audio tap in
-// processBlock (pre-offset, stereo branch) and applying the result to the
+// processBlock (pre-align, stereo branch) and applying the result to the
 // host parameters here on the message thread.
 
 namespace {
@@ -1751,7 +1772,7 @@ namespace {
 // chain outputs correlate far above this; unrelated ones peak near 0.
 constexpr float kAutoOffsetMinConfidence = 0.15f;
 // Lags under this are already aligned for any practical purpose (well under
-// a sample's worth of imaging); don't power the offset on over nothing.
+// a sample's worth of imaging); don't power Align on over nothing.
 constexpr float kAutoOffsetSilentMs = 0.05f;
 }  // namespace
 
@@ -1782,16 +1803,16 @@ juce::var TONE3000Processor::pollAutoOffset() {
       // (value - 0.5) · 2 · 24 ms, positive = right chain delayed.
       const float norm = juce::jlimit(
           0.0f, 1.0f, 0.5f + result.offsetMs / (2.0f * StereoOffsetParams::kMaxOffsetMs));
-      if (auto* param = parameters.getParameter("stereoOffsetTime")) {
+      if (auto* param = parameters.getParameter("alignOffset")) {
         param->beginChangeGesture();
         param->setValueNotifyingHost(norm);
         param->endChangeGesture();
       }
-      // Power the offset on when there's a real correction to hear. An
+      // Power Align on when there's a real correction to hear. An
       // effectively-zero result still rewrites the time (clearing a stale
       // knob value) but leaves the power switch alone.
       if (std::abs(result.offsetMs) >= kAutoOffsetSilentMs) {
-        if (auto* param = parameters.getParameter("stereoOffsetEnabled")) {
+        if (auto* param = parameters.getParameter("alignEnabled")) {
           param->beginChangeGesture();
           param->setValueNotifyingHost(1.0f);
           param->endChangeGesture();

@@ -175,7 +175,7 @@ flowchart LR
     CL --> OS2(("×N ↓&nbsp;*"))
     CR --> OS2
     OS2 --> RS2(("⇅ 48k"))
-    RS2 --> IMAGE["Spread&nbsp;* (mono) /<br/>Offset&nbsp;* (stereo)"]
+    RS2 --> IMAGE["Spread&nbsp;* (mono) /<br/>Align&nbsp;* (stereo)"]
     IMAGE --> PAN["Balance + Pan&nbsp;*<br/>(per-chain trim, then<br/>constant-power blend)"]
     PAN --> DCB["DC Blocker<br/>(~5 Hz HPF)"]
     DCB --> TS["Tone Stack&nbsp;*"]
@@ -193,10 +193,13 @@ flowchart LR
 - **Stereo mode**: channel 0 feeds the Left chain and channel 1 the Right
   chain independently. The Balance trim scales each chain (12 dB opposing)
   before the pan knobs place them with a constant-power law, so a balance
-  dialed in to match the chains stays correct at any pan position. The
-  Offset knob applies a corrective alignment delay (up to 24 ms) to one
-  chain, useful when NAM models or IRs carry different baked-in latency; the
-  auto-offset button measures it from a couple seconds of playing
+  dialed in to match the chains stays correct at any pan position; each pan
+  knob carries a solo that auditions its chain alone (exclusive: engaging
+  one clears the other; the mute rides the same smoothed matrix, so it
+  never clicks, and stays out of presets). Align
+  applies a corrective alignment delay (up to 24 ms) to one chain, useful
+  when NAM models or IRs carry different baked-in latency; the auto-align
+  button measures it from a couple seconds of playing
   (`plugin/include/AutoOffset.h`).
 - **Tone stack**: one global Bass/Middle/Treble EQ after the DC blocker.
 - **Oversampling**: an Advanced setting runs the whole chain at 2x/4x/8x the

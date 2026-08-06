@@ -3,23 +3,23 @@
 #include <juce_dsp/juce_dsp.h>
 
 /**
- * Stereo-mode corrective offset: a short static delay applied to one chain,
- * in place, purely for time-aligning the two chains (e.g. captures of the
- * same performance that land a few ms apart). Stereo chain mode only; mono
- * mode has Spread instead (see Spread.h), a separate feature with its own
+ * Align (stereo chain mode): a short static delay applied to one chain, in
+ * place, purely for time-aligning the two chains (e.g. captures of the same
+ * performance that land a few ms apart). Stereo chain mode only; mono mode
+ * has Spread instead (see Spread.h), a separate feature with its own
  * parameters.
  *
  * Control (see StereoOffsetParams for the normalized encoding): one bipolar
- * knob. Center = 0 ms; left of center delays the left chain, right of center
- * the right chain, up to ±24 ms.
+ * knob (alignOffset). Center = 0 ms; left of center delays the left chain,
+ * right of center the right chain, up to ±24 ms.
  *
- * Lifecycle: while the power switch is on the engine always runs (a 0 ms
- * delay is identity, and the per-sample cost is one delay push/pop on one
- * channel), so knob moves never hard-enable/disable DSP. Turning the power
- * off glides the delay to zero first and only then goes idle; crossing the
- * knob through center glides to zero, swaps the delayed channel, and glides
- * back up. Every transition passes through 0 ms, which is why none of them
- * click: at zero delay the output equals the input, sample for sample.
+ * Lifecycle: while Align is on the engine always runs (a 0 ms delay is
+ * identity, and the per-sample cost is one delay push/pop on one channel),
+ * so knob moves never hard-enable/disable DSP. Turning Align off glides the
+ * delay to zero first and only then goes idle; crossing the knob through
+ * center glides to zero, swaps the delayed channel, and glides back up.
+ * Every transition passes through 0 ms, which is why none of them click: at
+ * zero delay the output equals the input, sample for sample.
  *
  * The delay time ramps through a SmoothedValue into a Lagrange-interpolated
  * DelayLine (4-point cubic: a static fractional delay through linear
@@ -56,9 +56,9 @@ class StereoOffset {
 public:
   void prepare(double sampleRate, int maxBlockSize);
 
-  /** Per-block parameter update. `engaged` is the power switch: turning it
-      off starts a glide-out (isRunning() stays true until the delay lands on
-      zero); turning it on from idle starts clean at 0 ms. */
+  /** Per-block parameter update. `engaged` is Align's power switch: turning
+      it off starts a glide-out (isRunning() stays true until the delay lands
+      on zero); turning it on from idle starts clean at 0 ms. */
   void setTarget(const StereoOffsetParams& params, bool engaged);
 
   /** True while the engine needs process() this block. False = fully idle,

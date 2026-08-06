@@ -77,7 +77,7 @@ const sidedMsScale = (maxMs: number): KnobScale => {
 };
 
 /** Offset (bipolar), shared by the mono-mode Spread lag and the stereo-mode
-    corrective delay: center = 0 ms, ends reach 24 ms toward L or R. */
+    Align delay: center = 0 ms, ends reach 24 ms toward L or R. */
 export const offsetMsScale = sidedMsScale(24);
 
 /**

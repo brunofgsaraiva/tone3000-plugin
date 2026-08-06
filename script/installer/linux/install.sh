@@ -11,6 +11,8 @@
 #   LV2_DIR   LV2 plug-in dir    (default: ~/.lv2)
 #   CLAP_DIR  CLAP plug-in dir   (default: ~/.clap)
 #   BIN_DIR   standalone app dir (default: ~/.local/bin)
+#   DATA_DIR  XDG data dir for the desktop entry + icon
+#             (default: $XDG_DATA_HOME, or ~/.local/share)
 #
 # Runtime dependencies: the UI runs in a system WebKitGTK webview, which JUCE
 # loads dynamically at runtime (it is NOT bundled, unlike WebView2 on Windows).
@@ -23,6 +25,7 @@ VST3_DIR="${VST3_DIR:-$HOME/.vst3}"
 LV2_DIR="${LV2_DIR:-$HOME/.lv2}"
 CLAP_DIR="${CLAP_DIR:-$HOME/.clap}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
+DATA_DIR="${DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # Runtime dependency handling
@@ -213,6 +216,10 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   rm -rf "$LV2_DIR/TONE3000.lv2"
   rm -f "$CLAP_DIR/TONE3000.clap"
   rm -f "$BIN_DIR/TONE3000"
+  rm -f "$DATA_DIR/applications/tone3000.desktop"
+  rm -f "$DATA_DIR/icons/hicolor/512x512/apps/tone3000.png"
+  command -v update-desktop-database >/dev/null &&
+    update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
   echo "TONE3000 uninstalled."
   exit 0
 fi
@@ -256,12 +263,33 @@ echo "Installing standalone app to $BIN_DIR ..."
 mkdir -p "$BIN_DIR"
 install -m 755 "$HERE/TONE3000" "$BIN_DIR/TONE3000"
 
+# Desktop entry + icon so the standalone shows up in app launchers with the
+# proper name and artwork. Written here (not shipped as a file) because Exec
+# must be the absolute install path: launchers don't resolve ~/.local/bin
+# through the shell PATH.
+echo "Installing desktop entry and icon to $DATA_DIR ..."
+mkdir -p "$DATA_DIR/applications" "$DATA_DIR/icons/hicolor/512x512/apps"
+install -m 644 "$HERE/tone3000.png" "$DATA_DIR/icons/hicolor/512x512/apps/tone3000.png"
+cat > "$DATA_DIR/applications/tone3000.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=TONE3000
+Comment=Play NAM captures and IRs straight from TONE3000
+Exec=$BIN_DIR/TONE3000
+Icon=tone3000
+Terminal=false
+Categories=AudioVideo;Audio;Music;
+StartupWMClass=TONE3000
+EOF
+command -v update-desktop-database >/dev/null &&
+  update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
+
 echo ""
 echo "Done."
 echo "  VST3:       $VST3_DIR/TONE3000.vst3 (rescan plug-ins in your DAW)"
 echo "  LV2:        $LV2_DIR/TONE3000.lv2"
 echo "  CLAP:       $CLAP_DIR/TONE3000.clap"
-echo "  Standalone: $BIN_DIR/TONE3000"
+echo "  Standalone: $BIN_DIR/TONE3000 (desktop entry: applications menu > TONE3000)"
 if ! echo ":$PATH:" | grep -q ":$BIN_DIR:"; then
   echo ""
   echo "Note: $BIN_DIR is not on your PATH; launch the standalone with its full path"

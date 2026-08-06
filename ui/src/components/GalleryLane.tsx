@@ -10,7 +10,18 @@ const PAN_LEFT_SCALE = panScale('left');
 const PAN_RIGHT_SCALE = panScale('right');
 import { ChromeIconButton } from './ChromeIconButton';
 import { HELP, helpProps } from './helpText';
-import { BORDER, ICON_BOX_SIZE, ICON_SIZE, KNOB_SIZE_SECONDARY, WHITE } from './theme';
+import {
+  BLACK,
+  BORDER,
+  BRAND_YELLOW,
+  HIGHLIGHT,
+  ICON_BOX_SIZE,
+  ICON_SIZE,
+  iconButtonStyle,
+  KNOB_SIZE_SECONDARY,
+  MUTED,
+  WHITE,
+} from './theme';
 import { useParameter } from '../hooks/useParameter';
 import { useChainActions } from '../hooks/useChainActions';
 import type { ChainBranch, ChainItem, ChainSide } from '../types/chain';
@@ -204,7 +215,7 @@ const GhostRail: React.FC<{ slots: number; tileSize: number }> = ({ slots, tileS
 export const GalleryLane: React.FC<{
   items: ChainItem[];
   tileSize: number;
-  /** Stereo lanes use the 3×3 grip; mono uses the horizontal grip. */
+  /** Stereo mode: enables the branch affordances on the connector gaps. */
   stereo?: boolean;
   onOpen: (blockId: string) => void;
   /** Open the tone browser targeting the clicked insert slot. */
@@ -268,19 +279,12 @@ export const GalleryLane: React.FC<{
               key={item.blockId}
               id={item.blockId}
               size={tileSize}
-              stereo={stereo}
               routing={addTileRouting(index, items.length)}
               onClick={() => onAdd(item.blockId)}
               onPaste={onPasteBlock != null ? () => onPasteBlock(index) : null}
             />
           ) : (
-            <GalleryBlock
-              key={item.blockId}
-              block={item}
-              size={tileSize}
-              stereo={stereo}
-              onOpen={onOpen}
-            />
+            <GalleryBlock key={item.blockId} block={item} size={tileSize} onOpen={onOpen} />
           )
         )}
       </div>
@@ -288,18 +292,46 @@ export const GalleryLane: React.FC<{
   </div>
 );
 
+/** Per-lane solo chip beside the pan label: grey chip idle, the house armed
+    yellow while soloing. Exclusive: engaging one clears the other. The mute
+    happens in the native image matrix, on the same smoothers as pan moves,
+    so solos never click. */
+const SoloButton: React.FC<{ on: boolean; help: string; onClick: () => void }> = ({
+  on,
+  help,
+  onClick,
+}) => (
+  <button
+    type="button"
+    onClick={onClick}
+    {...helpProps(help)}
+    style={{
+      ...iconButtonStyle(),
+      fontSize: '12px',
+      fontFamily: 'monospace',
+      lineHeight: 1,
+      color: on ? BLACK : MUTED,
+      backgroundColor: on ? BRAND_YELLOW : HIGHLIGHT,
+    }}
+  >
+    S
+  </button>
+);
+
 /**
- * Left rail for stereo: per-lane pan knobs (each centered on its lane), with
- * the link toggle and whole-chain swap on the seam between them. Constant-
- * power pan positions (0 = hard left, 1 = hard right): Pan Left covers hard
- * left..center on a half track, Pan Right center..hard right. Linked (default)
- * mirrors the knobs so width changes stay symmetric.
+ * Left rail for stereo: per-lane pan knobs (each centered on its lane) with
+ * solo chips, and the link toggle and whole-chain swap on the seam between
+ * them. Constant-power pan positions (0 = hard left, 1 = hard right): Pan L
+ * covers hard left..center on a half track, Pan R center..hard right.
+ * Linked (default) mirrors the knobs so width changes stay symmetric.
  */
 export const StereoPanRail: React.FC = () => {
   const { swapChains } = useChainActions();
   const [panLeft, setPanLeft] = useParameter('chainPanLeft', 'slider');
   const [panRight, setPanRight] = useParameter('chainPanRight', 'slider');
   const [linked, setLinked] = useParameter('chainPanLinked', 'toggle');
+  const [soloLeft, setSoloLeft] = useParameter('chainSoloLeft', 'toggle');
+  const [soloRight, setSoloRight] = useParameter('chainSoloRight', 'toggle');
 
   const handlePanLeft = (value: number) => {
     setPanLeft(value);
@@ -314,6 +346,16 @@ export const StereoPanRail: React.FC = () => {
     setLinked(next);
     // Re-linking snaps back to a symmetric image, anchored on the left pan.
     if (next) setPanRight(1 - panLeft);
+  };
+  const toggleSoloLeft = () => {
+    const next = !soloLeft;
+    setSoloLeft(next);
+    if (next) setSoloRight(false);
+  };
+  const toggleSoloRight = () => {
+    const next = !soloRight;
+    setSoloRight(next);
+    if (next) setSoloLeft(false);
   };
 
   // Each knob region: knob centered on its lane, with a hairline connector
@@ -342,23 +384,29 @@ export const StereoPanRail: React.FC = () => {
         alignSelf: 'center',
         height: `${STEREO_TILE_SIZE * 2 + LANE_GAP}px`,
         flexShrink: 0,
+        // Clearance between the solo chips and the lane tiles.
+        paddingRight: 16,
+        boxSizing: 'content-box',
       }}
     >
       <div style={knobRegion}>
         <div style={spacer} />
         <KnobControl
-          label="Pan Left"
+          label="Pan L"
           value={panLeft}
           onChange={handlePanLeft}
           variant="panLeft"
           min={0}
           max={0.5}
           size={KNOB_SIZE_SECONDARY}
-          labelSize={10}
           thumb="secondary"
           scale={PAN_LEFT_SCALE}
           defaultValue={0}
           help={HELP.panLeft}
+          labelBright
+          labelExtra={
+            <SoloButton on={soloLeft} help={HELP.soloLeft} onClick={toggleSoloLeft} />
+          }
         />
         <div style={connector} />
       </div>
@@ -389,18 +437,21 @@ export const StereoPanRail: React.FC = () => {
       <div style={knobRegion}>
         <div style={connector} />
         <KnobControl
-          label="Pan Right"
+          label="Pan R"
           value={panRight}
           onChange={handlePanRight}
           variant="panRight"
           min={0.5}
           max={1}
           size={KNOB_SIZE_SECONDARY}
-          labelSize={10}
           thumb="secondary"
           scale={PAN_RIGHT_SCALE}
           defaultValue={1}
           help={HELP.panRight}
+          labelBright
+          labelExtra={
+            <SoloButton on={soloRight} help={HELP.soloRight} onClick={toggleSoloRight} />
+          }
         />
         <div style={spacer} />
       </div>

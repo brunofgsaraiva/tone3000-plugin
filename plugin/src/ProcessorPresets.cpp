@@ -12,12 +12,14 @@
 // undo step, so a preset load is itself undoable.
 
 const std::vector<juce::String>& TONE3000Processor::presetParameterIds() {
+  // chainSolo* stays out on purpose: solo is monitoring state, not tone,
+  // and a preset saved mid-audition must not load with a chain muted.
   static const std::vector<juce::String> ids = {
       "inputLevel",     "outputLevel",         "outputBalance",
       "toneBass",       "toneMid",             "toneTreble",
       "gateThreshold",  "gateEnabled",         "toneEqEnabled",
       "spreadEnabled",  "spreadOffset",        "spreadWobble",
-      "stereoOffsetEnabled", "stereoOffsetTime",
+      "alignEnabled",   "alignOffset",
       "chainPanLeft",   "chainPanRight",       "chainPanLinked",
   };
   return ids;

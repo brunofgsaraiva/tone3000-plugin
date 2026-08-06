@@ -50,10 +50,12 @@ export const MAPPABLE_TARGETS: MappableTarget[] = [
   // Virtual target like block powers: stereo on/off is chain state, not an
   // APVTS parameter (the native mapper resolves the id itself).
   { id: 'stereoEnabled', name: 'Stereo Mode', group: 'Stereo', kind: 'toggle' },
-  { id: 'stereoOffsetEnabled', name: 'Offset Power', group: 'Stereo', kind: 'toggle' },
-  { id: 'stereoOffsetTime', name: 'Offset', group: 'Stereo', kind: 'continuous' },
+  { id: 'alignEnabled', name: 'Align Power', group: 'Align', kind: 'toggle' },
+  { id: 'alignOffset', name: 'Align Offset', group: 'Align', kind: 'continuous' },
   { id: 'chainPanLeft', name: 'Pan L', group: 'Stereo', kind: 'continuous' },
   { id: 'chainPanRight', name: 'Pan R', group: 'Stereo', kind: 'continuous' },
+  { id: 'chainSoloLeft', name: 'Solo L', group: 'Stereo', kind: 'toggle' },
+  { id: 'chainSoloRight', name: 'Solo R', group: 'Stereo', kind: 'toggle' },
   ...Array.from({ length: BLOCK_POWER_TARGETS }, (_, i): MappableTarget => ({
     id: `block${i + 1}Power`,
     name: `Block ${i + 1} Power`,

@@ -5,7 +5,7 @@ import type { KnobThumb, KnobVariant } from './KnobInner';
 import type { KnobScale } from './knobScale';
 import { percentScale } from './knobScale';
 import { helpProps, pinHelp, unpinHelp } from './helpText';
-import { GRAY, SURFACE_RAISED } from './theme';
+import { GRAY, ICON_BOX_SIZE, KNOB_LABEL_GAP, SURFACE_RAISED, WHITE } from './theme';
 
 /**
  * Knob interaction conventions (matching typical plugin UX):
@@ -25,7 +25,6 @@ interface KnobControlProps {
   value: number;
   onChange: (value: number) => void;
   size?: number;
-  labelSize?: number;
   labelBottom?: boolean;
   /** Visual tone (see KnobInner): primary = a section's headline knob (the
       default), secondary = its darker companion trim. */
@@ -45,11 +44,22 @@ interface KnobControlProps {
   /** One-line hint for the faceplate help readout, shown while hovered or
       dragging (see helpText.ts). */
   help?: string;
+  /** Optional chrome beside the label (e.g. a pan-rail solo chip). Renders
+      in a flex row with the label; the row grows past the knob width. */
+  labelExtra?: React.ReactNode;
+  /** Idle label in white instead of muted gray (pan rail: labels read as
+      section titles next to the solo chips). Readout/edit stay white either
+      way. */
+  labelBright?: boolean;
   /** Fires true on grab / false on release, so owners of optimistic values
       can pause external syncs mid-drag (a stale poll must not fight the
       pointer). */
   onDragStateChange?: (dragging: boolean) => void;
 }
+
+/** Every knob label is 14px; faceplate chrome lift and secondary-knob
+    centerlines are built around that slot height. */
+const LABEL_SIZE = 14;
 
 const BASE_SENSITIVITY = 0.006;
 const FINE_FACTOR = 8;
@@ -77,7 +87,6 @@ export const KnobControl: React.FC<KnobControlProps> = ({
   value,
   onChange,
   size = 64,
-  labelSize = 14,
   labelBottom = true,
   thumb = 'primary',
   variant = 'full',
@@ -86,6 +95,8 @@ export const KnobControl: React.FC<KnobControlProps> = ({
   scale = percentScale,
   defaultValue,
   help,
+  labelExtra,
+  labelBright = false,
   onDragStateChange,
 }) => {
   const knobRef = useRef<HTMLDivElement>(null);
@@ -248,8 +259,9 @@ export const KnobControl: React.FC<KnobControlProps> = ({
   const showReadout = !editing && readoutVisible;
   // Fixed-footprint label slot: readout/input can be wider than the label
   // but must never shift surrounding layout, so the slot is sized once and
-  // its content overflows symmetrically.
-  const slotHeight = Math.round(labelSize * 1.2);
+  // its content overflows symmetrically. With labelExtra the row grows past
+  // the knob width (label + chip), so drop the width lock.
+  const slotHeight = Math.round(LABEL_SIZE * 1.2);
 
   return (
     <div
@@ -259,7 +271,7 @@ export const KnobControl: React.FC<KnobControlProps> = ({
         flexDirection: labelBottom ? 'column' : 'column-reverse',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: labelSize === 14 ? '14px' : '10px',
+        gap: `${KNOB_LABEL_GAP}px`,
       }}
     >
       <KnobHeadless
@@ -290,11 +302,12 @@ export const KnobControl: React.FC<KnobControlProps> = ({
 
       <div
         style={{
-          width: size,
-          height: slotHeight,
+          width: labelExtra ? undefined : size,
+          height: Math.max(slotHeight, labelExtra ? ICON_BOX_SIZE : 0),
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: labelExtra ? '6px' : undefined,
           overflow: 'visible',
         }}
       >
@@ -319,7 +332,7 @@ export const KnobControl: React.FC<KnobControlProps> = ({
               border: '1px solid rgba(235, 235, 245, 0.3)',
               borderRadius: '4px',
               color: '#ffffff',
-              fontSize: Math.min(labelSize, 11),
+              fontSize: 11,
               textAlign: 'center',
               outline: 'none',
               padding: 0,
@@ -328,12 +341,12 @@ export const KnobControl: React.FC<KnobControlProps> = ({
         ) : (
           <span
             style={{
-              fontSize: labelSize,
+              fontSize: LABEL_SIZE,
               fontWeight: 400,
               textAlign: 'center',
-              // Idle labels are muted; the live value readout stays white so
-              // it pops while dragging.
-              color: showReadout ? '#ffffff' : GRAY,
+              // Idle labels are muted by default; pan-rail labels pass
+              // labelBright to read as section titles. Readout is always white.
+              color: showReadout || labelBright ? WHITE : GRAY,
               letterSpacing: showReadout ? 'normal' : '1px',
               whiteSpace: 'nowrap',
               fontVariantNumeric: 'tabular-nums',
@@ -342,6 +355,7 @@ export const KnobControl: React.FC<KnobControlProps> = ({
             {showReadout ? scale.format(value) : label}
           </span>
         )}
+        {labelExtra}
       </div>
     </div>
   );

@@ -4,11 +4,11 @@
 #include <vector>
 
 /**
- * Auto offset: one-shot time-alignment measurement between the two chains in
+ * Auto Align: one-shot time-alignment measurement between the two chains in
  * stereo chain mode. Different NAM models / IRs can carry different baked-in
  * latency, so two chains fed the same instrument can land a few ms apart;
  * this measures that misalignment from the user's real playing and produces
- * the corrective delay for the StereoOffset engine.
+ * the corrective delay for the Align feature (StereoOffset engine).
  *
  * Why listening, not an impulse: NAM chains are nonlinear (a gate eats a
  * quiet impulse, a hot one smears into distortion; neither measures the
@@ -21,7 +21,7 @@
  * Lifecycle (mirrors auto-balance; see Processor.h):
  *  - start() [message thread] arms the capture.
  *  - capture() [audio thread] appends the raw chain outputs (tapped BEFORE
- *    the StereoOffset delay, so the measurement is the chains' absolute
+ *    the Align delay, so the measurement is the chains' absolute
  *    misalignment, independent of the current knob) while state is
  *    Listening. Blocks below a -50 dBFS floor don't count (silence between
  *    phrases must not dilute the correlation); ~15 s without enough signal
@@ -32,7 +32,7 @@
  *
  * Analysis: circular cross-correlation via FFT (zero-padded past the lag
  * window, so wrap-around never contaminates it), peak-searched over ±24 ms,
- * the range the Offset knob can express (StereoOffsetParams::kMaxOffsetMs).
+ * the range the Align Offset knob can express (StereoOffsetParams::kMaxOffsetMs).
  * The result carries a confidence: the normalized correlation at the peak
  * (1 = identical up to gain and shift). A misalignment beyond ±24 ms or
  * genuinely unrelated outputs shows up as a noise-level peak, and the caller

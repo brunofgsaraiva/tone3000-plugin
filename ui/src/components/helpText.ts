@@ -144,7 +144,7 @@ export const HELP = {
   outputBalance: knobHelp('Balance', 'level trim between chains, ±12 dB (pre-pan). Center: off.'),
   autoBalance: 'Auto Balance: click, play ~2 s to match chain levels. Click again: cancel.',
 
-  // Faceplate: gate, tone stack, stereo image (spread / offset)
+  // Faceplate: gate, tone stack, stereo image (spread / align)
   gate: knobHelp('Gate', 'noise gate threshold, -100 to 0 dB.'),
   gatePower: 'Gate Power: noise gate on/off.',
   toneBass: knobHelp('Bass', 'tone stack lows, 0-10.'),
@@ -158,11 +158,11 @@ export const HELP = {
   spreadWobble: knobHelp('Wobble', 'humanizing delay drift, up to ±1.2 ms.'),
   spreadAdvert: 'Spread: mono-to-stereo double via a wobbling short lag. Click: enable.',
   spreadPower: 'Spread Power: spread off; collapses its controls. Right-click: advanced.',
-  spreadCorrelation:
-    'Mono safety: dim: safe · yellow: caution · red: cancellation on mono sum.',
-  offsetTime: knobHelp('Offset', 'corrective chain alignment, ≤24 ms toward L or R. Center: off.'),
-  offsetPower: 'Offset Power: corrective chain alignment on/off.',
-  autoOffset: 'Auto Offset: click, play ~2 s to time-align chains. Click again: cancel.',
+  spreadCorrelation: 'Mono safety: dim: safe · yellow: caution · red: cancellation on mono sum.',
+  alignOffset: knobHelp('Offset', 'corrective chain alignment, ≤24 ms toward L or R. Center: off.'),
+  alignAdvert: 'Align: corrective chain time alignment. Click: enable.',
+  alignPower: 'Align Power: align off; collapses its controls.',
+  autoAlign: 'Auto Align: click, play ~2 s to time-align chains. Click again: cancel.',
 
   // Top bar
   tuner: 'Tuner: chromatic tuner. Click again: back.',
@@ -185,18 +185,19 @@ export const HELP = {
   presetMoveDown: 'Move Down: one spot later.',
 
   // Chain gallery
-  addTile: 'Add Tone: browse TONE3000 for this slot. Right-click: paste · drag tile or grip: move.',
+  addTile: 'Add Tone: browse TONE3000 for this slot. Right-click: paste · drag: move.',
   closeToneBrowser: 'Close: back to the chain.',
-  dragGrip: `Grip: drag to reorder · ${alt('drag')}: duplicate. Stereo: drop on the other lane to move.`,
   copyBlock: 'Copy: copy this block (tone, model and all settings).',
   pasteBlock: 'Paste: add a copy of the copied block in this slot.',
   blockPower: 'Power: bypass this block.',
   retryLoad: 'Retry: re-download this model.',
   swapTone: 'Swap: replace this tone, keeping its slot.',
   removeBlock: 'Remove: delete this block.',
-  panLeft: knobHelp('Pan Left', 'Left chain, hard left ↔ center.'),
-  panRight: knobHelp('Pan Right', 'Right chain, center ↔ hard right.'),
+  panLeft: knobHelp('Pan L', 'Left chain, hard left ↔ center.'),
+  panRight: knobHelp('Pan R', 'Right chain, center ↔ hard right.'),
   panLink: 'Link Pans: mirror both pan knobs.',
+  soloLeft: 'Solo L: hear the Left chain alone.',
+  soloRight: 'Solo R: hear the Right chain alone.',
   swapChains: 'Swap Chains: exchange Left/Right chains, pans included.',
   branchGap: 'Branch: feed the other chain from this point in this chain.',
   branchJunction: 'Branch Point: the other chain starts here. Click: make chains independent.',
@@ -229,7 +230,8 @@ export const HELP = {
   eqDot: `Band Dot: drag: freq + gain · scroll: Q · ${shift('drag')}: fine · ${alt(
     'click'
   )}: reset.`,
-  eqFreqChip: 'Freq: click to type (\u201c800\u201d, \u201c1.2k\u201d). Enter: commit · Esc: cancel.',
+  eqFreqChip:
+    'Freq: click to type (\u201c800\u201d, \u201c1.2k\u201d). Enter: commit · Esc: cancel.',
   eqGainChip: 'Gain: click to type, ±15 dB. Enter: commit · Esc: cancel.',
   eqQChip: `Q: scroll the graph (${shift('scroll')}: fine) or click to type.`,
 
@@ -244,7 +246,7 @@ export const HELP = {
 
 /** Gallery tile: leads with the tone's own name. */
 export const toneTileHelp = (title: string) =>
-  `${title}. Click: open · drag: reorder · right-click: copy.`;
+  `${title}. Click: open · drag: reorder · ${alt('drag')}: duplicate · right-click: copy.`;
 
 /** Curve-type selector buttons in the EQ editor. */
 export const bandTypeHelp = (label: string) => `${label}: band curve shape.`;

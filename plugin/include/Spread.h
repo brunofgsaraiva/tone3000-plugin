@@ -62,7 +62,7 @@
 /** Decoded spread parameters. Normalized knob values map here in exactly
     one place so the DSP and any UI readouts agree. */
 struct SpreadParams {
-  // Same span as the stereo-mode corrective Offset (StereoOffsetParams) so
+  // Same span as the stereo-mode Align delay (StereoOffsetParams) so
   // the two faces of the stereo-image slot read identically.
   static constexpr float kMaxOffsetMs = 24.0f;
 

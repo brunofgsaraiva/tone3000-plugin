@@ -458,6 +458,7 @@ jobs:
           cp "$ARTEFACTS/Standalone/TONE3000" "$STAGE/"
           install -m 755 script/installer/linux/install.sh "$STAGE/install.sh"
           install -m 644 script/installer/linux/README.txt "$STAGE/README.txt"
+          install -m 644 script/installer/linux/tone3000.png "$STAGE/tone3000.png"
           tar -czf "build/${PKG}.tar.gz" -C build "$PKG"
           echo "Created build/${PKG}.tar.gz"
 

@@ -3,7 +3,7 @@ import { ChevronDown, Equal, Power } from 'lucide-react';
 import { KnobControl } from './KnobControl';
 import { balanceDbScale, gainDbScale, gateDbScale, toneScale } from './knobScale';
 import { SpreadGroup } from './SpreadControls';
-import { OffsetGroup } from './OffsetControls';
+import { AlignGroup } from './AlignControls';
 import { useParameter } from '../hooks/useParameter';
 import type { InputMode } from '../types/chain';
 import { useAutoMeasure, type AutoMeasureResult } from '../hooks/useAutoMeasure';
@@ -285,7 +285,6 @@ const OutputGainKnob: React.FC<{
           value={balance}
           onChange={setBalance}
           size={KNOB_SIZE_SECONDARY}
-          labelSize={12}
           variant="bipolar"
           thumb="secondary"
           scale={balanceDbScale}
@@ -298,7 +297,6 @@ const OutputGainKnob: React.FC<{
         value={level}
         onChange={setLevel}
         size={KNOB_SIZE_PRIMARY}
-        labelSize={12}
         scale={gainDbScale}
         defaultValue={0.5}
         help={HELP.outputLevel}
@@ -312,7 +310,7 @@ interface FaceplateProps {
       output balance knob. */
   stereoOutput: boolean;
   /** Two independent chains are running (stereo mode); shows the auto
-      balance button and swaps the Spread group for the Offset group.
+      balance button and swaps the Spread group for the Align group.
       Mono-mode spread doesn't need auto balance: both channels carry the
       same chain, so their energy already matches. */
   stereoChains: boolean;
@@ -349,10 +347,11 @@ export const Faceplate = React.memo(function Faceplate({
         width: '100%',
         height: `${PLATE_HEIGHT}px`,
         display: 'flex',
-        // Center the knob columns in the plate (Figma: 16px pad top/bottom
-        // around the 48px primary + label stack).
-        alignItems: 'center',
+        // Five peers (Input, Gate, Tone, Spread/Align, Output) share the
+        // plate width. flex-end keeps the secondary Gate on the same label
+        // baseline as the primary knobs (same pattern as Bal next to Output).
         justifyContent: 'space-between',
+        alignItems: 'flex-end',
         flexShrink: 0,
         borderTop: BORDER,
         background: '#1C1C1E',
@@ -360,14 +359,12 @@ export const Faceplate = React.memo(function Faceplate({
         boxSizing: 'border-box',
       }}
     >
-      {/* Input level + channel mode (mode only when the source is stereo). */}
       <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-end', gap: '10px' }}>
         <KnobControl
           label="Input"
           value={inputLevel}
           onChange={setInputLevel}
           size={KNOB_SIZE_PRIMARY}
-          labelSize={12}
           scale={gainDbScale}
           defaultValue={0.5}
           help={HELP.inputLevel}
@@ -377,7 +374,6 @@ export const Faceplate = React.memo(function Faceplate({
         )}
       </div>
 
-      {/* Gate + power */}
       <div
         style={{
           display: 'flex',
@@ -392,7 +388,6 @@ export const Faceplate = React.memo(function Faceplate({
           value={noiseGate}
           onChange={setNoiseGate}
           size={KNOB_SIZE_SECONDARY}
-          labelSize={12}
           thumb="secondary"
           scale={gateDbScale}
           defaultValue={gateDbScale.fromDisplay(-80)}
@@ -405,7 +400,6 @@ export const Faceplate = React.memo(function Faceplate({
         />
       </div>
 
-      {/* 3-band tone stack + power */}
       <div
         style={{
           display: 'flex',
@@ -421,7 +415,6 @@ export const Faceplate = React.memo(function Faceplate({
             value={toneBass}
             onChange={setToneBass}
             size={KNOB_SIZE_PRIMARY}
-            labelSize={12}
             scale={toneScale}
             defaultValue={toneScale.fromDisplay(5)}
             help={HELP.toneBass}
@@ -431,7 +424,6 @@ export const Faceplate = React.memo(function Faceplate({
             value={toneMid}
             onChange={setToneMid}
             size={KNOB_SIZE_PRIMARY}
-            labelSize={12}
             scale={toneScale}
             defaultValue={toneScale.fromDisplay(5)}
             help={HELP.toneMiddle}
@@ -441,7 +433,6 @@ export const Faceplate = React.memo(function Faceplate({
             value={toneTreble}
             onChange={setToneTreble}
             size={KNOB_SIZE_PRIMARY}
-            labelSize={12}
             scale={toneScale}
             defaultValue={toneScale.fromDisplay(5)}
             help={HELP.toneTreble}
@@ -454,11 +445,9 @@ export const Faceplate = React.memo(function Faceplate({
         />
       </div>
 
-      {/* Stereo-image slot, just before the output stage it feeds: the
-          Spread in mono mode, the corrective Offset (with its auto-align
-          button) in stereo mode. Both share one fixed footprint
+      {/* Stereo-image slot: Spread in mono, Align in stereo. Fixed footprint
           (IMAGE_GROUP_WIDTH) so mode switches never shift the plate. */}
-      {stereoChains ? <OffsetGroup /> : <SpreadGroup />}
+      {stereoChains ? <AlignGroup /> : <SpreadGroup />}
 
       <OutputGainKnob stereo={stereoOutput} autoBalance={stereoChains} />
     </div>

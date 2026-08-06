@@ -103,11 +103,13 @@ private:
   juce::WebToggleButtonRelay spreadEnabledRelay{"spreadEnabled"};
   juce::WebSliderRelay spreadOffsetRelay{"spreadOffset"};
   juce::WebSliderRelay spreadWobbleRelay{"spreadWobble"};
-  juce::WebToggleButtonRelay stereoOffsetEnabledRelay{"stereoOffsetEnabled"};
-  juce::WebSliderRelay stereoOffsetTimeRelay{"stereoOffsetTime"};
+  juce::WebToggleButtonRelay alignEnabledRelay{"alignEnabled"};
+  juce::WebSliderRelay alignOffsetRelay{"alignOffset"};
   juce::WebSliderRelay chainPanLeftRelay{"chainPanLeft"};
   juce::WebSliderRelay chainPanRightRelay{"chainPanRight"};
   juce::WebToggleButtonRelay chainPanLinkedRelay{"chainPanLinked"};
+  juce::WebToggleButtonRelay chainSoloLeftRelay{"chainSoloLeft"};
+  juce::WebToggleButtonRelay chainSoloRightRelay{"chainSoloRight"};
   juce::WebSliderRelay bassRelay{"toneBass"};
   juce::WebSliderRelay midRelay{"toneMid"};
   juce::WebSliderRelay trebleRelay{"toneTreble"};
@@ -132,16 +134,20 @@ private:
       *processor.parameters.getParameter("spreadOffset"), spreadOffsetRelay, nullptr};
   juce::WebSliderParameterAttachment spreadWobbleWebAttachment{
       *processor.parameters.getParameter("spreadWobble"), spreadWobbleRelay, nullptr};
-  juce::WebToggleButtonParameterAttachment stereoOffsetEnabledWebAttachment{
-      *processor.parameters.getParameter("stereoOffsetEnabled"), stereoOffsetEnabledRelay, nullptr};
-  juce::WebSliderParameterAttachment stereoOffsetTimeWebAttachment{
-      *processor.parameters.getParameter("stereoOffsetTime"), stereoOffsetTimeRelay, nullptr};
+  juce::WebToggleButtonParameterAttachment alignEnabledWebAttachment{
+      *processor.parameters.getParameter("alignEnabled"), alignEnabledRelay, nullptr};
+  juce::WebSliderParameterAttachment alignOffsetWebAttachment{
+      *processor.parameters.getParameter("alignOffset"), alignOffsetRelay, nullptr};
   juce::WebSliderParameterAttachment chainPanLeftWebAttachment{
       *processor.parameters.getParameter("chainPanLeft"), chainPanLeftRelay, nullptr};
   juce::WebSliderParameterAttachment chainPanRightWebAttachment{
       *processor.parameters.getParameter("chainPanRight"), chainPanRightRelay, nullptr};
   juce::WebToggleButtonParameterAttachment chainPanLinkedWebAttachment{
       *processor.parameters.getParameter("chainPanLinked"), chainPanLinkedRelay, nullptr};
+  juce::WebToggleButtonParameterAttachment chainSoloLeftWebAttachment{
+      *processor.parameters.getParameter("chainSoloLeft"), chainSoloLeftRelay, nullptr};
+  juce::WebToggleButtonParameterAttachment chainSoloRightWebAttachment{
+      *processor.parameters.getParameter("chainSoloRight"), chainSoloRightRelay, nullptr};
   juce::WebToggleButtonParameterAttachment gateEnabledWebAttachment{
       *processor.parameters.getParameter("gateEnabled"), gateEnabledRelay, nullptr};
   juce::WebToggleButtonParameterAttachment toneEqEnabledWebAttachment{

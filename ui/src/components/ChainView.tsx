@@ -48,7 +48,7 @@ import { isInsertSlot } from '../types/chain';
  * spans both lanes and the lane lists are mirrored into optimistic local
  * state, so cross-lane drags reflow the target lane live (onDragOver) and
  * drops land without any snap-back while the native roundtrip completes.
- * Tap/click opens the detail takeover; drag the tile (or grip) to reorder.
+ * Tap/click opens the detail takeover; drag a tile to reorder.
  */
 
 /**
@@ -84,12 +84,7 @@ type Lanes = Record<ChainSide, ChainItem[]>;
     holds its home slot while the standard drag machinery runs untouched. */
 const DUP_STAND_IN_ID = '__duplicate-stand-in__';
 
-export const ChainView: React.FC<ChainViewProps> = ({
-  chain,
-  chainRight,
-  branch,
-  sampleRate,
-}) => {
+export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch, sampleRate }) => {
   const actions = useChainActions();
   // Persisted so the detail takeover survives this component unmounting: a
   // swap from the detail view opens the tone browser (which replaces the whole
@@ -522,7 +517,7 @@ export const ChainView: React.FC<ChainViewProps> = ({
             before the optimistic lane commit paints, so the ghost would fly
             back to the old slot before the tile appears at the new one. */}
         <DragOverlay dropAnimation={null}>
-          {activeDrag && <GalleryTileGhost item={activeDrag} size={tileSize} stereo={stereo} />}
+          {activeDrag && <GalleryTileGhost item={activeDrag} size={tileSize} />}
         </DragOverlay>
       </DndContext>
     </div>

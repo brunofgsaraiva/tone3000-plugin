@@ -4,9 +4,9 @@
 #include <juce_dsp/juce_dsp.h>
 #include <cmath>
 
-// The lag window is exactly what the Offset knob can correct.
+// The lag window is exactly what the Align Offset knob can correct.
 static_assert(AutoOffset::kMaxLagMs == StereoOffsetParams::kMaxOffsetMs,
-              "auto-offset must search the range the Offset knob can express");
+              "auto-align must search the range the Align Offset knob can express");
 
 void AutoOffset::prepare(double newSampleRate) {
   sampleRate = newSampleRate > 0.0 ? newSampleRate : 48000.0;

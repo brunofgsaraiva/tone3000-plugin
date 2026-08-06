@@ -15,6 +15,7 @@ import {
   ICON_SIZE,
   KNOB_SIZE_PRIMARY,
   KNOB_SIZE_SECONDARY,
+  KNOB_LABEL_GAP,
   SUBTLE,
   faceplateChromeLift,
   pillButtonStyle,
@@ -48,13 +49,13 @@ const SPREAD_WOBBLE_DEFAULT = 0.25;
 const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
 
 /** Fixed slot width shared by the advert pill, the expanded knob + power
-    row, and the stereo-mode Offset group: every state of the stereo-image
+    row, and the stereo-mode Align group: every state of the stereo-image
     slot occupies the same footprint so toggles never shift the plate (it's
-    laid out with space-between). Sized for the advert, the widest face. */
+    laid out with a fixed footprint). Sized for the advert, the widest face. */
 export const IMAGE_GROUP_WIDTH = 148;
 /** Secondary-knob centerline above the plate baseline (label + gap + radius);
     vertically centers the advert on the same line as the plate's buttons. */
-const SECONDARY_CENTER_Y = 10 + 14 + KNOB_SIZE_SECONDARY / 2;
+const SECONDARY_CENTER_Y = KNOB_LABEL_GAP + 14 + KNOB_SIZE_SECONDARY / 2;
 /** The advert stands as tall as the plate's primary knobs. */
 const ADVERT_HEIGHT = KNOB_SIZE_PRIMARY;
 
@@ -159,7 +160,6 @@ const AdvancedPanel = React.forwardRef<
         value={wobble}
         onChange={setWobble}
         size={KNOB_SIZE_SECONDARY}
-        labelSize={12}
         thumb="secondary"
         scale={percentScale}
         defaultValue={SPREAD_WOBBLE_DEFAULT}
@@ -214,7 +214,6 @@ export const SpreadGroup: React.FC = () => {
               onChange={setOffset}
               variant="bipolar"
               size={KNOB_SIZE_PRIMARY}
-              labelSize={12}
               scale={offsetMsScale}
               defaultValue={SPREAD_OFFSET_DEFAULT}
               help={HELP.spreadOffset}

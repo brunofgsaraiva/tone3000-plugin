@@ -591,7 +591,8 @@ export const ToneBrowser: React.FC<ToneBrowserProps> = ({
                 ? client.listFavoritedTones.bind(client)
                 : client.listCreatedTones.bind(client);
           const res = await list({ page, pageSize: PAGE_SIZE, gear: gearFilter ?? undefined });
-          if (!cancelled) setResult({ data: res.data, page: res.page, totalPages: res.total_pages });
+          if (!cancelled)
+            setResult({ data: res.data, page: res.page, totalPages: res.total_pages });
         }
       } catch {
         if (!cancelled) setError('Failed to load tones from TONE3000.');
@@ -729,8 +730,9 @@ export const ToneBrowser: React.FC<ToneBrowserProps> = ({
   // Trending always closes with a path to the rest of the catalog: signed
   // out that's a sign-in nudge (picking a tone needs a session anyway);
   // signed in it's just the persistent Browse CTA again, restated here so
-  // it's still reachable after scrolling past the top-10 feed.
-  const showTrendingFooter = stream === 'trending' && !error;
+  // it's still reachable after scrolling past the top-10 feed. Held back
+  // until results land so it never floats alone under the loading dots.
+  const showTrendingFooter = stream === 'trending' && !error && !loading;
 
   return (
     <div
@@ -743,19 +745,21 @@ export const ToneBrowser: React.FC<ToneBrowserProps> = ({
         color: '#ffffff',
       }}
     >
-      <div style={{ maxWidth: `${COLUMN_MAX_WIDTH}px`, margin: '0 auto', width: '100%' }}>
-        {/* Header, pinned while the content scrolls beneath it. Matches the
-            expanded block card header (back arrow + hairline rule). The tabs
-            live in the pinned area too, so only the pills and results scroll
-            underneath. */}
-        <div
-          style={{
-            position: 'sticky',
-            top: 0,
-            zIndex: 2,
-            backgroundColor: '#000000',
-          }}
-        >
+      {/* Header, pinned while the content scrolls beneath it. Matches the
+          expanded block card header (back arrow + hairline rule). The tabs
+          live in the pinned area too, so only the pills and results scroll
+          underneath. The sticky strip spans the full viewport width (the
+          filter pills bleed past the column for their edge fades, and must
+          pass behind it); the inner div re-centers the content column. */}
+      <div
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 2,
+          backgroundColor: '#000000',
+        }}
+      >
+        <div style={{ maxWidth: `${COLUMN_MAX_WIDTH}px`, margin: '0 auto', width: '100%' }}>
           <div
             style={{
               display: 'flex',
@@ -803,11 +807,13 @@ export const ToneBrowser: React.FC<ToneBrowserProps> = ({
           </div>
           <StreamTabs active={stream} onChange={switchStream} />
         </div>
+      </div>
 
-        {/* Scrolling content; 24px bottom pad so the paginator / last row
-            has air above the faceplate (Select fills the center column to
-            the faceplate; this pad lives in the scroll content, not the
-            shared meter band). */}
+      {/* Scrolling content; 24px bottom pad so the paginator / last row
+          has air above the faceplate (Select fills the center column to
+          the faceplate; this pad lives in the scroll content, not the
+          shared meter band). */}
+      <div style={{ maxWidth: `${COLUMN_MAX_WIDTH}px`, margin: '0 auto', width: '100%' }}>
         <div style={{ padding: '20px 0 24px' }}>
           {!showSignInPrompt && (
             <GearFilterRow active={gearFilter} onChange={handleGearFilterChange} />

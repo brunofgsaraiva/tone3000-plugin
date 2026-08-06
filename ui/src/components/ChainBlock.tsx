@@ -519,7 +519,6 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                   }}
                   onDragStateChange={handleKnobDragState}
                   size={KNOB_SIZE_SECONDARY}
-                  labelSize={12}
                   labelBottom={false}
                   thumb="secondary"
                   scale={gainDbScale}
@@ -719,7 +718,6 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                   }}
                   onDragStateChange={handleKnobDragState}
                   size={KNOB_SIZE_SECONDARY}
-                  labelSize={12}
                   labelBottom={false}
                   thumb="secondary"
                   defaultValue={defaultMix}
@@ -795,7 +793,6 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                     }}
                     onDragStateChange={handleKnobDragState}
                     size={KNOB_SIZE_SECONDARY}
-                    labelSize={12}
                     labelBottom={false}
                     thumb="secondary"
                     scale={gainDbScale}
