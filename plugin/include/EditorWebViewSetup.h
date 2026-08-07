@@ -29,6 +29,15 @@ void clearAuthCookies();
  * WindowMouseEvents.mm.
  */
 void enableHostWindowMouseMovedEvents(void* nsViewPtr);
+
+/**
+ * Kill the grey pre-load flash: stop the WKWebView drawing its own (system
+ * grey) background before the page's first paint, and paint the hosting
+ * NSWindow black behind it. Takes the editor's NSView* (peer native handle);
+ * implemented in WindowMouseEvents.mm. Idempotent; safe to call on every
+ * reparent, before or after the WKWebView exists in the hierarchy.
+ */
+void applyBlackWebViewBackground(void* nsViewPtr);
 #endif
 
 /**

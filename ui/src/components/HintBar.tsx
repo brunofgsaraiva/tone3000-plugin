@@ -19,8 +19,8 @@ interface HintBarProps {
   onNamFullSizeChange: (full: boolean) => void;
 }
 
-/** Secondary home of the NAM A2 size setting (the primary lives in Settings →
-    Advanced): one machine-wide LITE/FULL preference for every NAM block. */
+/** Secondary home of the NAM A2 size setting (the primary lives in Plugin
+    Settings): one LITE/FULL preference for every NAM block. */
 const NamSizeToggle: React.FC<HintBarProps> = ({ namFullSize, onNamFullSizeChange }) => (
   <div {...helpProps(HELP.namSize)} style={segmentedGroupStyle()}>
     {([false, true] as const).map((full) => (
@@ -70,9 +70,8 @@ const CpuReadout: React.FC = () => {
  * part of the plate) and always present while hints are enabled, so showing a
  * hint never shifts layout. Like the banner, it grows the window rather than
  * eating into the plugin: Plugin adds HINT_HEIGHT to the window height.
- * The right side carries the machine-wide NAM A2 size toggle and the CPU
- * readout; the × hides the bar entirely, and the Settings "Info Bar" toggle
- * brings it back.
+ * The right side carries the NAM A2 size toggle and the CPU readout; the ×
+ * hides the bar entirely, and the Settings "Info Bar" toggle brings it back.
  */
 export const HintBar: React.FC<HintBarProps> = ({ namFullSize, onNamFullSizeChange }) => {
   const enabled = useHintsEnabled();

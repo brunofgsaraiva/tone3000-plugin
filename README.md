@@ -202,7 +202,7 @@ flowchart LR
   button measures it from a couple seconds of playing
   (`plugin/include/AutoOffset.h`).
 - **Tone stack**: one global Bass/Middle/Treble EQ after the DC blocker.
-- **Oversampling**: an Advanced setting runs the whole chain at 2x/4x/8x the
+- **Oversampling**: a Plugin Settings option runs the whole chain at 2x/4x/8x the
   48 kHz base rate: minimum-phase half-band filters (zero added latency),
   with NAM models phase-interleaved across N native-rate instances so
   harmonics land in the widened band instead of folding back as aliasing.
@@ -210,7 +210,7 @@ flowchart LR
   at the 48 kHz base rate inside a per-block decimate/interpolate island,
   and IR CPU and sound are identical at every factor. Design notes in
   [`plugin/docs/oversampling.md`](plugin/docs/oversampling.md).
-- **Multi-core stereo**: an Advanced setting (on by default, machine-wide)
+- **Multi-core stereo**: a Plugin Settings option (on by default, machine-wide)
   processes the two stereo chains concurrently. The Right chain (or, when
   branched, the branch lane) runs on a realtime worker thread while the
   audio thread processes the other, and the audio thread can always steal

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useCallback, useMemo, useRef } from 'react';
 import { useNativeFunction } from '../hooks/useFunction';
 import { useChainState } from '../hooks/useChainState';
 import { ChainActionsProvider } from '../hooks/useChainActions';
@@ -18,7 +18,8 @@ import { HintBar, HINT_HEIGHT } from './HintBar';
 import { ToastProvider } from './Toast';
 import { PluginHeader } from './PluginHeader';
 import { useHintsEnabled } from './helpText';
-import { AppBanner, BANNER_HEIGHT, useAppBanner, type BannerAction } from './AppBanner';
+import { AppBanner, useAppBanner, type BannerAction } from './AppBanner';
+import { useChromeChoreography, BANNER_ANIM_MS } from '../hooks/useChromeChoreography';
 import { DbMeter } from './DbMeter';
 import { TunerView } from './TunerView';
 import { OAuthOverlay } from './OAuthOverlay';
@@ -32,8 +33,8 @@ import type { ToneBlock } from '../types/chain';
 
 export const Plugin: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
-  // Which tab Settings opens on; banner actions land directly on System.
-  const settingsTabRef = useRef<SettingsTab>('plugin');
+  // Which tab Settings opens on; banner / gear land on System (setup first).
+  const settingsTabRef = useRef<SettingsTab>('system');
   const [showTuner, setShowTuner] = useState(false);
   // In-plugin tone browser takeover (streams of TONE3000 tones). Opened by
   // the + when already authenticated, or right after the no-prompt login
@@ -82,22 +83,20 @@ export const Plugin: React.FC = () => {
     settingsTabRef.current = tab;
     setShowSettings(true);
   }, []);
-  const openPluginSettings = useCallback(() => openSettings('plugin'), [openSettings]);
+  const openDefaultSettings = useCallback(() => openSettings('system'), [openSettings]);
 
   // App banner: one priority-picked banner over the audio device state
   // (standalone only). Both the banner (top) and the hint bar (bottom) are
-  // chrome strips that grow the window rather than squish the 578px core; we
-  // report their combined height to native whenever either toggles.
+  // chrome strips that grow the window rather than squish the 578px core.
   const { banner, dismiss: dismissBanner } = useAppBanner(standalone ? audioDevice.state : null);
   // Whole-UI proportional scaling: the root div below is a fixed 1024-wide
   // design-space box and this ref's CSS zoom stretches it to the window.
   const uiScaleRef = useUiScale<HTMLDivElement>();
-  const bannerVisible = banner !== null;
   const hintsVisible = useHintsEnabled();
-  const extraHeight = (bannerVisible ? BANNER_HEIGHT : 0) + (hintsVisible ? HINT_HEIGHT : 0);
-  useEffect(() => {
-    setExtraContentHeight(extraHeight);
-  }, [extraHeight, setExtraContentHeight]);
+  // Chrome choreography: reports the strip heights to native (before paint)
+  // and sequences the banner mount against the window resize so existing
+  // content never jumps; see useChromeChoreography for the phase machine.
+  const chrome = useChromeChoreography(banner, hintsVisible, setExtraContentHeight);
 
   const handleBannerAction = useCallback(
     (kind: BannerAction) => {
@@ -280,10 +279,14 @@ export const Plugin: React.FC = () => {
         // Explicit design-space box: the useUiScale zoom stretches it to the
         // real window size, so every hard-coded px inside scales with it.
         width: `${DESIGN_WIDTH}px`,
-        // The window grows by the chrome-strip height (see setExtraContentHeight
-        // above), so the 578px core UI between them keeps its full space.
+        // The window grows by the chrome-strip height (see useChromeChoreography),
+        // so the 578px core UI between them keeps its full space.
         // (Figma's 600 includes a 22px mock OS title bar outside JUCE setSize.)
-        height: `${DESIGN_HEIGHT + extraHeight}px`,
+        height: `${DESIGN_HEIGHT + chrome.rootExtraHeight}px`,
+        // While the banner slides, the root and the banner wrapper animate
+        // height with the same curve, so the flex middle (root minus fixed
+        // strips) stays exactly constant and nothing inside moves.
+        transition: chrome.animating ? `height ${BANNER_ANIM_MS}ms ease` : undefined,
         display: 'flex',
         flexDirection: 'column',
         backgroundColor: '#000000',
@@ -295,8 +298,27 @@ export const Plugin: React.FC = () => {
       {/* One app-wide toast pill, floating above the faceplate. Everything
           that raises toasts (preset save, share, auto measure) is inside. */}
       <ToastProvider bottom={PLATE_HEIGHT + (hintsVisible ? HINT_HEIGHT : 0) + 24}>
-        {banner && (
-          <AppBanner banner={banner} onAction={handleBannerAction} onDismiss={dismissBanner} />
+        {chrome.renderedBanner && (
+          // Slide slot: the banner is anchored to the slot's bottom edge, so
+          // opening/closing the slot slides it down/up from behind the top
+          // edge. The window has already grown before the slide starts.
+          <div
+            style={{
+              height: `${chrome.bannerSlotHeight}px`,
+              overflow: 'hidden',
+              flexShrink: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'flex-end',
+              transition: chrome.animating ? `height ${BANNER_ANIM_MS}ms ease` : undefined,
+            }}
+          >
+            <AppBanner
+              banner={chrome.renderedBanner}
+              onAction={handleBannerAction}
+              onDismiss={dismissBanner}
+            />
+          </div>
         )}
 
         <PluginHeader
@@ -312,7 +334,7 @@ export const Plugin: React.FC = () => {
           onRedo={actions.redo}
           user={session.user}
           authenticated={authenticated}
-          onOpenSettings={openPluginSettings}
+          onOpenSettings={openDefaultSettings}
           onLogin={handleLogin}
           onLogout={handleLogout}
         />

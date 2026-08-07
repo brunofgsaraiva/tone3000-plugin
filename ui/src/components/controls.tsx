@@ -12,6 +12,9 @@ import { MUTED, SUBTLE, BRAND_RED, BRAND_YELLOW, WHITE } from './theme';
 
 export const FIELD_BORDER = '1px solid #3f3f46';
 
+/** Vertical gap between top-level settings sections. */
+export const SECTION_GAP = 48;
+
 export const outlinedFieldStyle: React.CSSProperties = {
   backgroundColor: 'transparent',
   border: FIELD_BORDER,
@@ -30,6 +33,52 @@ export const sectionLabelStyle: React.CSSProperties = {
   fontWeight: 600,
   color: '#ffffff',
 };
+
+/**
+ * Bordered settings card with an icon + uppercase title (e.g. AUDIO INTERFACE).
+ * Children are stacked with a tighter internal gap; the card itself owns the
+ * outer SECTION_GAP below.
+ */
+export const SettingsGroup: React.FC<{
+  title: string;
+  icon: React.ReactNode;
+  children: React.ReactNode;
+  style?: React.CSSProperties;
+}> = ({ title, icon, children, style }) => (
+  <section
+    style={{
+      border: FIELD_BORDER,
+      borderRadius: '10px',
+      padding: '20px',
+      marginBottom: `${SECTION_GAP}px`,
+      boxSizing: 'border-box',
+      ...style,
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        marginBottom: '24px',
+      }}
+    >
+      <span style={{ display: 'flex', color: '#ffffff', flexShrink: 0 }}>{icon}</span>
+      <span
+        style={{
+          fontSize: '16px',
+          fontWeight: 600,
+          letterSpacing: '0.08em',
+          color: '#ffffff',
+          textTransform: 'uppercase',
+        }}
+      >
+        {title}
+      </span>
+    </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '28px' }}>{children}</div>
+  </section>
+);
 
 export const descriptionStyle: React.CSSProperties = {
   fontSize: '13px',
@@ -226,14 +275,17 @@ export function SelectField<T extends string>({
   );
 }
 
-/** Label + help + control: the repeating field shape of the settings tabs. */
+/** Label + help + control: the repeating field shape of the settings tabs.
+ *  Pass `flush` inside a SettingsGroup (the group owns vertical rhythm). */
 export const FieldRow: React.FC<{
   label: string;
   help?: React.ReactNode;
   labelExtra?: React.ReactNode;
   children: React.ReactNode;
-}> = ({ label, help, labelExtra, children }) => (
-  <div style={{ marginBottom: '32px' }}>
+  /** Drop the outer bottom margin (SettingsGroup stacks with gap instead). */
+  flush?: boolean;
+}> = ({ label, help, labelExtra, children, flush = false }) => (
+  <div style={{ marginBottom: flush ? 0 : `${SECTION_GAP}px` }}>
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <span style={sectionLabelStyle}>{label}</span>
       {labelExtra}
@@ -251,8 +303,9 @@ export const ToggleRow: React.FC<{
   value: boolean;
   onChange: (value: boolean) => void;
   children?: React.ReactNode;
-}> = ({ label, description, value, onChange, children }) => (
-  <div style={{ marginBottom: '32px' }}>
+  flush?: boolean;
+}> = ({ label, description, value, onChange, children, flush = false }) => (
+  <div style={{ marginBottom: flush ? 0 : `${SECTION_GAP}px` }}>
     <div
       style={{
         display: 'flex',

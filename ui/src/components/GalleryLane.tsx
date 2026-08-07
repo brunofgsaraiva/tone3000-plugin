@@ -428,7 +428,7 @@ export const StereoPanRail: React.FC = () => {
           onClick={handleToggleLink}
           offsetY={0}
         >
-          <Link size={ICON_SIZE} />
+          <Link size={ICON_SIZE} style={{ transform: 'rotate(0deg)' }} />
         </ChromeIconButton>
         <ChromeIconButton help={HELP.swapChains} onClick={swapChains} offsetY={0}>
           <ArrowUpDown size={ICON_SIZE} />

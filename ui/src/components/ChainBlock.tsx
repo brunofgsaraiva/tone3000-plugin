@@ -123,7 +123,8 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   const { blockId, tone, params } = block;
   const actions = useChainActions();
 
-  // Optional (=) normalization toggle, revealed by the Advanced setting.
+  // Optional (=) normalization toggle, revealed by Per-Block Normalization
+  // in Plugin Settings.
   const showNormalizeControl = useBlockNormalizeControlEnabled();
 
   // Optimistic local values for the controls; native converges via polling.

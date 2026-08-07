@@ -29,8 +29,11 @@ public:
       (standalone only) and/or the hint bar. The webview reports the combined
       height whenever a strip appears/disappears so the window grows instead of
       squishing the core UI. Works in hosts too: setSize() becomes a host
-      resize request via the plugin wrapper. */
-  void setExtraContentHeight(int pixels);
+      resize request via the plugin wrapper.
+      `persistentPixels` is the portion that survives sessions (the hint bar,
+      not the banner); it's stored on the processor so the next editor opens
+      pre-sized for the chrome the UI will actually render on first paint. */
+  void setExtraContentHeight(int pixels, int persistentPixels);
 
   int getControlParameterIndex(juce::Component&) override {
     return controlParameterIndexReceiver.getControlParameterIndex();

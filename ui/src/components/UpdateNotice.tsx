@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import DOMPurify from 'dompurify';
 import { X } from 'lucide-react';
 import type { UpdateNoticeData } from '../hooks/useUpdateNotice';
-import { BORDER, MUTED, SURFACE, iconButtonStyle, pillButtonStyle } from './theme';
+import { BORDER, MUTED, SURFACE, filledPillButtonStyle, iconButtonStyle } from './theme';
 
 interface UpdateNoticeProps {
   notice: UpdateNoticeData | null;
@@ -92,7 +92,7 @@ export const UpdateNotice: React.FC<UpdateNoticeProps> = ({ notice, onRemindLate
           <X size={16} />
         </button>
 
-        <div style={{ fontSize: 15, fontWeight: 600 }}>Update available: v{notice.version}</div>
+        <div style={{ fontSize: 14, fontWeight: 400 }}>Update available: v{notice.version}</div>
 
         <div
           style={{ fontSize: 13, fontWeight: 400, lineHeight: 1.5, color: MUTED, maxWidth: 340 }}
@@ -103,7 +103,7 @@ export const UpdateNotice: React.FC<UpdateNoticeProps> = ({ notice, onRemindLate
           href={notice.url}
           target="_blank"
           rel="noopener noreferrer"
-          style={{ ...pillButtonStyle(), textDecoration: 'none' }}
+          style={{ ...filledPillButtonStyle, textDecoration: 'none' }}
         >
           Download update
         </a>

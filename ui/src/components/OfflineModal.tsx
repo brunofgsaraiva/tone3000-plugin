@@ -1,6 +1,6 @@
 import React from 'react';
 import { WifiOff } from 'lucide-react';
-import { pillButtonStyle } from './theme';
+import { filledPillButtonStyle, pillButtonStyle } from './theme';
 
 interface OfflineModalProps {
   open: boolean;
@@ -44,10 +44,10 @@ export const OfflineModal: React.FC<OfflineModalProps> = ({ open, onRetry, onDis
         No internet connection. Connect to browse and load tones from TONE3000.
       </div>
       <div style={{ display: 'flex', gap: 12 }}>
-        <button type="button" onClick={onRetry} style={pillButtonStyle()}>
+        <button type="button" onClick={onRetry} style={filledPillButtonStyle}>
           Try again
         </button>
-        <button type="button" onClick={onDismiss} style={pillButtonStyle(false)}>
+        <button type="button" onClick={onDismiss} style={pillButtonStyle}>
           Dismiss
         </button>
       </div>

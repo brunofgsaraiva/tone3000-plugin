@@ -7,8 +7,10 @@ import {
   AlertCard,
   ChoiceIndicator,
   FieldRow,
+  SECTION_GAP,
   SegmentedControl,
   SelectField,
+  SettingsGroup,
   ToggleRow,
   captionStyle,
   outlinedFieldStyle,
@@ -18,6 +20,40 @@ import { bannerRuleById } from './AppBanner';
 import { DotMeter } from './BlockMeter';
 import { METER_MAX_DB } from './meterColor';
 import { MUTED, SUBTLE } from './theme';
+
+/** Hardcase / interface glyph for the AUDIO INTERFACE group header. */
+const AudioInterfaceIcon: React.FC = () => (
+  <svg width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden>
+    <path
+      d="M8.33398 13.3333H8.34232"
+      stroke="currentColor"
+      strokeWidth="1.66667"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M1.84268 9.64751C1.72652 9.87927 1.66603 10.1349 1.66602 10.3942V15C1.66602 15.442 1.84161 15.866 2.15417 16.1785C2.46673 16.4911 2.89065 16.6667 3.33268 16.6667H16.666C17.108 16.6667 17.532 16.4911 17.8445 16.1785C18.1571 15.866 18.3327 15.442 18.3327 15V10.3942C18.3327 10.1349 18.2722 9.87927 18.156 9.64751L15.4577 4.25834C15.3197 3.98067 15.107 3.74699 14.8435 3.58358C14.58 3.42017 14.2761 3.33351 13.966 3.33334H6.03268C5.72261 3.33351 5.41874 3.42017 5.15522 3.58358C4.8917 3.74699 4.679 3.98067 4.54102 4.25834L1.84268 9.64751Z"
+      stroke="currentColor"
+      strokeWidth="1.66667"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M18.2876 10.0108H1.71094"
+      stroke="currentColor"
+      strokeWidth="1.66667"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <path
+      d="M5 13.3333H5.00833"
+      stroke="currentColor"
+      strokeWidth="1.66667"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
 
 /**
  * Re-renders a main-window banner's copy inline, next to the control that
@@ -206,6 +242,7 @@ const InputChannelPicker: React.FC<{
 
   return (
     <FieldRow
+      flush
       label={mode === 'stereo' ? 'Input Channels' : 'Input Channel'}
       help={
         channels.length === 0
@@ -333,7 +370,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ device }) => {
       {state.micPermission === 'denied' && (
         <AlertCard
           variant="error"
-          style={{ marginBottom: '32px' }}
+          style={{ marginBottom: `${SECTION_GAP}px` }}
           actions={[{ label: 'Allow Access', onClick: () => apply(actions.openMicSettings) }]}
         >
           <b>Microphone access is off.</b> TONE3000 can’t hear your instrument until you allow it in
@@ -343,7 +380,7 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ device }) => {
       {inlineError && (
         <AlertCard
           variant="error"
-          style={{ marginBottom: '32px' }}
+          style={{ marginBottom: `${SECTION_GAP}px` }}
           actions={[
             {
               label: 'Retry',
@@ -370,172 +407,185 @@ export const SystemSettings: React.FC<SystemSettingsProps> = ({ device }) => {
         <InlineBannerAlert id="input-muted" show={showMuted} state={state} />
       </ToggleRow>
 
-      {/* Driver picker, only when the platform has more than one backend. */}
-      {state.deviceTypes.length > 1 && (
-        <FieldRow
-          label="Audio Driver"
-          help={
-            state.deviceTypes.includes('ASIO')
-              ? 'ASIO gives the lowest latency with a dedicated interface.'
-              : 'Choose which audio system drives your devices.'
-          }
-        >
-          <SelectField
-            value={state.currentType}
-            options={state.deviceTypes.map((t) => ({ value: t, label: t }))}
-            onChange={(t) => apply(() => actions.setDeviceType(t))}
-            ariaLabel="Audio driver"
-          />
-          <InlineBannerAlert id="asio-nudge" state={state} />
-        </FieldRow>
-      )}
-
-      {/* Device picker(s): one for linked-I/O drivers, separate otherwise. */}
-      {state.separateIO ? (
-        <FieldRow
-          label="Input Device"
-          help="The interface or microphone your instrument is plugged into."
-        >
-          <SelectField
-            value={state.inputDevice}
-            options={deviceOptions(state.inputDevices, state.inputDevice, 'No input device')}
-            onChange={(name) => apply(() => actions.setInputDevice(name))}
-            ariaLabel="Input device"
-          />
-        </FieldRow>
-      ) : (
-        <FieldRow label="Device" help="This driver handles input and output together.">
-          <SelectField
-            value={state.outputDevice}
-            options={deviceOptions(state.outputDevices, state.outputDevice, 'No device')}
-            onChange={(name) => apply(() => actions.setLinkedDevice(name))}
-            ariaLabel="Audio device"
-          />
-        </FieldRow>
-      )}
-
-      <InputChannelPicker
-        state={state}
-        onApply={(indices) => apply(() => actions.setInputChannels(indices))}
-      />
-
-      {/* Output device + test tone. */}
-      <FieldRow label="Output Device" help="Select where you want to hear the sound.">
-        <div style={{ display: 'flex', gap: '8px' }}>
-          {state.separateIO && (
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <SelectField
-                value={state.outputDevice}
-                options={deviceOptions(state.outputDevices, state.outputDevice, 'No output device')}
-                onChange={(name) => apply(() => actions.setOutputDevice(name))}
-                ariaLabel="Output device"
-              />
-            </div>
-          )}
-          {/* Fixed width + constant label so the active state never shifts
-              layout; the icon turns green (and pulses) while the tone plays. */}
-          <button
-            onClick={playTest}
-            disabled={testDisabled || testPlaying}
-            style={{
-              ...outlinedFieldStyle,
-              width: '104px',
-              flexShrink: 0,
-              padding: '12px 0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '7px',
-              cursor: testDisabled || testPlaying ? 'default' : 'pointer',
-              color: testPlaying ? '#00D13B' : testDisabled ? SUBTLE : '#ffffff',
-            }}
+      <SettingsGroup title="Audio Interface" icon={<AudioInterfaceIcon />}>
+        {/* Driver picker, only when the platform has more than one backend. */}
+        {state.deviceTypes.length > 1 && (
+          <FieldRow
+            flush
+            label="Audio Driver"
+            help={
+              state.deviceTypes.includes('ASIO')
+                ? 'ASIO gives the lowest latency with a dedicated interface.'
+                : 'Choose which audio system drives your devices.'
+            }
           >
-            <Volume2
-              size={15}
-              style={{ animation: testPlaying ? 't3kTestPulse 0.9s ease-in-out infinite' : 'none' }}
+            <SelectField
+              value={state.currentType}
+              options={state.deviceTypes.map((t) => ({ value: t, label: t }))}
+              onChange={(t) => apply(() => actions.setDeviceType(t))}
+              ariaLabel="Audio driver"
             />
-            Test
-          </button>
-        </div>
-        <InlineBannerAlert id="no-output" show={showNoOutput} state={state} />
-      </FieldRow>
+            <InlineBannerAlert id="asio-nudge" state={state} />
+          </FieldRow>
+        )}
 
-      {/* Stereo output pair, only for multi-out interfaces. */}
-      {state.outputPairs.length > 1 && (
-        <FieldRow label="Output Channels" help="This interface has more than one output pair.">
-          <SelectField
-            value={String(Math.max(state.activeOutputPair, 0))}
-            options={state.outputPairs.map((label, i) => ({ value: String(i), label }))}
-            onChange={(i) => apply(() => actions.setOutputPair(Number(i)))}
-            ariaLabel="Output channels"
-          />
-        </FieldRow>
-      )}
+        {/* Device picker(s): one for linked-I/O drivers, separate otherwise. */}
+        {state.separateIO ? (
+          <FieldRow
+            flush
+            label="Input Device"
+            help="The interface or microphone your instrument is plugged into."
+          >
+            <SelectField
+              value={state.inputDevice}
+              options={deviceOptions(state.inputDevices, state.inputDevice, 'No input device')}
+              onChange={(name) => apply(() => actions.setInputDevice(name))}
+              ariaLabel="Input device"
+            />
+          </FieldRow>
+        ) : (
+          <FieldRow flush label="Device" help="This driver handles input and output together.">
+            <SelectField
+              value={state.outputDevice}
+              options={deviceOptions(state.outputDevices, state.outputDevice, 'No device')}
+              onChange={(name) => apply(() => actions.setLinkedDevice(name))}
+              ariaLabel="Audio device"
+            />
+          </FieldRow>
+        )}
 
-      {/* Buffer size; list and current value are device readback. */}
-      {state.bufferSizes.length > 0 && (
-        <FieldRow
-          label="Buffer Size"
-          help="Hearing a delay between picking and hearing the note? Choose a smaller size. Hearing crackles or pops? Choose a bigger one."
-        >
-          <SelectField
-            value={String(state.bufferSize)}
-            options={state.bufferSizes.map((samples) => ({
-              value: String(samples),
-              label: formatBufferOption(samples, state.sampleRate, state.bufferSizes.length > 1),
-            }))}
-            onChange={(samples) => apply(() => actions.setBufferSize(Number(samples)))}
-            disabled={state.bufferSizes.length <= 1}
-            ariaLabel="Buffer size"
-          />
-          {bufferCaption(state) && <p style={captionStyle}>{bufferCaption(state)}</p>}
-          <InlineBannerAlert id="buffer-latency" state={state} />
-        </FieldRow>
-      )}
+        <InputChannelPicker
+          state={state}
+          onApply={(indices) => apply(() => actions.setInputChannels(indices))}
+        />
 
-      {/* Sample rate. */}
-      {state.sampleRates.length > 0 && (
-        <FieldRow
-          label="Sample Rate"
-          help="48000 Hz is the sweet spot and uses the least CPU. Other rates work fine, pick one if your device needs it or you prefer it."
-        >
-          <SelectField
-            value={String(state.sampleRate)}
-            options={state.sampleRates.map((rate) => ({
-              value: String(rate),
-              label: `${rate} Hz${rate === 48000 && state.sampleRates.length > 1 ? ' (recommended)' : ''}`,
-            }))}
-            onChange={(rate) => apply(() => actions.setSampleRate(Number(rate)))}
-            disabled={state.sampleRates.length <= 1}
-            ariaLabel="Sample rate"
-          />
-          {rateCaption(state) && <p style={captionStyle}>{rateCaption(state)}</p>}
-          <InlineBannerAlert id="rate-not-48k" state={state} />
-        </FieldRow>
-      )}
-
-      {/* Vendor control panel (ASIO); buffer/clock often live there. */}
-      {state.hasControlPanel && (
-        <FieldRow
-          label="Driver Settings"
-          help="Buffer and clock options live in the manufacturer's app for this driver."
-        >
+        {/* Output device + test tone. */}
+        <FieldRow flush label="Output Device" help="Select where you want to hear the sound.">
           <div style={{ display: 'flex', gap: '8px' }}>
+            {state.separateIO && (
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <SelectField
+                  value={state.outputDevice}
+                  options={deviceOptions(
+                    state.outputDevices,
+                    state.outputDevice,
+                    'No output device'
+                  )}
+                  onChange={(name) => apply(() => actions.setOutputDevice(name))}
+                  ariaLabel="Output device"
+                />
+              </div>
+            )}
+            {/* Fixed width + constant label so the active state never shifts
+                layout; the icon turns green (and pulses) while the tone plays. */}
             <button
-              onClick={() => apply(actions.openControlPanel)}
-              style={{ ...outlinedFieldStyle, padding: '12px 16px', cursor: 'pointer', flex: 1 }}
+              onClick={playTest}
+              disabled={testDisabled || testPlaying}
+              style={{
+                ...outlinedFieldStyle,
+                width: '104px',
+                flexShrink: 0,
+                padding: '12px 0',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '7px',
+                cursor: testDisabled || testPlaying ? 'default' : 'pointer',
+                color: testPlaying ? '#00D13B' : testDisabled ? SUBTLE : '#ffffff',
+              }}
             >
-              Open Control Panel
-            </button>
-            <button
-              onClick={() => apply(actions.restartDevice)}
-              style={{ ...outlinedFieldStyle, padding: '12px 16px', cursor: 'pointer', flex: 1 }}
-            >
-              Reset Device
+              <Volume2
+                size={15}
+                style={{
+                  animation: testPlaying ? 't3kTestPulse 0.9s ease-in-out infinite' : 'none',
+                }}
+              />
+              Test
             </button>
           </div>
+          <InlineBannerAlert id="no-output" show={showNoOutput} state={state} />
         </FieldRow>
-      )}
+
+        {/* Stereo output pair, only for multi-out interfaces. */}
+        {state.outputPairs.length > 1 && (
+          <FieldRow flush label="Output Channels" help="This interface has more than one output pair.">
+            <SelectField
+              value={String(Math.max(state.activeOutputPair, 0))}
+              options={state.outputPairs.map((label, i) => ({ value: String(i), label }))}
+              onChange={(i) => apply(() => actions.setOutputPair(Number(i)))}
+              ariaLabel="Output channels"
+            />
+          </FieldRow>
+        )}
+
+        {/* Buffer size; list and current value are device readback. */}
+        {state.bufferSizes.length > 0 && (
+          <FieldRow
+            flush
+            label="Buffer Size"
+            help="Hearing a delay between picking and hearing the note? Choose a smaller size. Hearing crackles or pops? Choose a bigger one."
+          >
+            <SelectField
+              value={String(state.bufferSize)}
+              options={state.bufferSizes.map((samples) => ({
+                value: String(samples),
+                label: formatBufferOption(samples, state.sampleRate, state.bufferSizes.length > 1),
+              }))}
+              onChange={(samples) => apply(() => actions.setBufferSize(Number(samples)))}
+              disabled={state.bufferSizes.length <= 1}
+              ariaLabel="Buffer size"
+            />
+            {bufferCaption(state) && <p style={captionStyle}>{bufferCaption(state)}</p>}
+            <InlineBannerAlert id="buffer-latency" state={state} />
+          </FieldRow>
+        )}
+
+        {/* Sample rate. */}
+        {state.sampleRates.length > 0 && (
+          <FieldRow
+            flush
+            label="Sample Rate"
+            help="48000 Hz is the sweet spot and uses the least CPU. Other rates work fine, pick one if your device needs it or you prefer it."
+          >
+            <SelectField
+              value={String(state.sampleRate)}
+              options={state.sampleRates.map((rate) => ({
+                value: String(rate),
+                label: `${rate} Hz${rate === 48000 && state.sampleRates.length > 1 ? ' (recommended)' : ''}`,
+              }))}
+              onChange={(rate) => apply(() => actions.setSampleRate(Number(rate)))}
+              disabled={state.sampleRates.length <= 1}
+              ariaLabel="Sample rate"
+            />
+            {rateCaption(state) && <p style={captionStyle}>{rateCaption(state)}</p>}
+            <InlineBannerAlert id="rate-not-48k" state={state} />
+          </FieldRow>
+        )}
+
+        {/* Vendor control panel (ASIO); buffer/clock often live there. */}
+        {state.hasControlPanel && (
+          <FieldRow
+            flush
+            label="Driver Settings"
+            help="Buffer and clock options live in the manufacturer's app for this driver."
+          >
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => apply(actions.openControlPanel)}
+                style={{ ...outlinedFieldStyle, padding: '12px 16px', cursor: 'pointer', flex: 1 }}
+              >
+                Open Control Panel
+              </button>
+              <button
+                onClick={() => apply(actions.restartDevice)}
+                style={{ ...outlinedFieldStyle, padding: '12px 16px', cursor: 'pointer', flex: 1 }}
+              >
+                Reset Device
+              </button>
+            </div>
+          </FieldRow>
+        )}
+      </SettingsGroup>
 
       {/* MIDI hardware: which devices feed the plugin. What each control
           does is mapped in Plugin Settings → MIDI Mapping. */}

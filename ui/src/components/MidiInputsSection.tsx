@@ -114,7 +114,7 @@ export const MidiInputsSection: React.FC<{ device: AudioDevice }> = ({ device })
           }}
         >
           <Bluetooth size={14} />
-          Bluetooth MIDI…
+          Bluetooth MIDI
         </button>
       )}
     </FieldRow>

@@ -39,6 +39,8 @@ export const KNOB_SIZE_SECONDARY = 36;
 export const BRAND_BLUE = '#0000FF';
 export const BRAND_YELLOW = '#FFFF00';
 export const BRAND_RED = '#FF0000';
+/** Inline doc / “Learn More” links in settings. */
+export const LINK_BLUE = '#40A6FF';
 
 export const WHITE = '#ffffff';
 export const BLACK = '#000000';
@@ -59,32 +61,32 @@ export const SURFACE = '#151517';
 export const SURFACE_RAISED = '#1C1C1E';
 
 /**
- * Pill CTA: the house text-button style (preset Save, the tone browser's
- * Browse CTA, gear chips): rounded-full outline on a transparent fill.
- * Primary = white outline + white label; secondary (the "dismiss" next to a
- * primary) = hairline outline + muted label.
+ * Outline pill CTA: white border + white label on a transparent fill.
+ * Used for chrome actions (Browse, Spread) and as the secondary button on
+ * edge-case screens (Dismiss beside a filled primary).
  */
-export const pillButtonStyle = (primary = true): CSSProperties => ({
+export const pillButtonStyle: CSSProperties = {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   gap: '8px',
   padding: '7px 16px',
   fontSize: '13px',
-  fontWeight: 600,
+  fontWeight: 400,
   borderRadius: '9999px',
-  border: primary ? `1px solid ${WHITE}` : BORDER,
+  border: `1px solid ${WHITE}`,
   backgroundColor: 'transparent',
-  color: primary ? WHITE : MUTED,
+  color: WHITE,
   cursor: 'pointer',
   whiteSpace: 'nowrap',
   flexShrink: 0,
-});
+};
 
 /**
- * Filled pill CTA: solid white on black copy, for the one or two highest-
- * priority actions on a screen (tone browser sign-in prompts). Distinct from
- * `pillButtonStyle`'s outline treatment, which is used everywhere else.
+ * Filled pill CTA: solid white background + black label at weight 400.
+ * The highest-priority action on edge-case / gated screens (sign-in, Try
+ * again, Download update, Reload). Pair with `pillButtonStyle` for any
+ * secondary action beside it.
  */
 export const filledPillButtonStyle: CSSProperties = {
   display: 'flex',
@@ -92,7 +94,7 @@ export const filledPillButtonStyle: CSSProperties = {
   justifyContent: 'center',
   padding: '10px 20px',
   fontSize: '14px',
-  fontWeight: 600,
+  fontWeight: 400,
   borderRadius: '9999px',
   border: 'none',
   backgroundColor: WHITE,

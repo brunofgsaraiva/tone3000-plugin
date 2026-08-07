@@ -91,7 +91,7 @@ const AdvertButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
     onClick={onClick}
     {...helpProps(HELP.spreadAdvert)}
     style={{
-      ...pillButtonStyle(true),
+      ...pillButtonStyle,
       height: `${ADVERT_HEIGHT}px`,
       width: `${IMAGE_GROUP_WIDTH}px`,
       marginBottom: `${SECONDARY_CENTER_Y - ADVERT_HEIGHT / 2}px`,

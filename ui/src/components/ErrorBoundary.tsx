@@ -1,5 +1,6 @@
 import React from 'react';
 import * as Juce from 'juce-framework-frontend';
+import { MUTED, filledPillButtonStyle, pillButtonStyle } from './theme';
 
 interface ErrorBoundaryState {
   error: Error | null;
@@ -23,8 +24,18 @@ export class ErrorBoundary extends React.Component<
   }
 
   componentDidCatch(error: Error, info: React.ErrorInfo) {
-    // console.error is shimmed to forward into TONE3000.log on the native side.
-    console.error('UI crashed:', error.stack ?? error.message, info.componentStack ?? '');
+    const message = `UI crashed: ${error.stack ?? error.message}\nComponent stack:${
+      info.componentStack ?? ' (none)'
+    }`;
+    // Last line of defense, so write straight to the native log via the
+    // explicit API instead of relying on the console.* forwarding shim.
+    try {
+      void Juce.getNativeFunction('webLog')('error', message);
+    } catch {
+      // Not running inside the plugin (plain browser dev); the console
+      // below is visible there anyway.
+    }
+    console.error(message);
   }
 
   private copyLogs = () => {
@@ -60,13 +71,13 @@ export class ErrorBoundary extends React.Component<
           fontFamily: 'system-ui, -apple-system, sans-serif',
         }}
       >
-        <div style={{ fontSize: 15, fontWeight: 600 }}>Something went wrong</div>
+        <div style={{ fontSize: 14, fontWeight: 400 }}>Something went wrong</div>
         <div
           style={{
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: 400,
-            opacity: 0.7,
-            maxWidth: 480,
+            color: MUTED,
+            maxWidth: 360,
             maxHeight: 120,
             overflow: 'hidden',
             wordBreak: 'break-word',
@@ -75,38 +86,14 @@ export class ErrorBoundary extends React.Component<
           {this.state.error.message}
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
-          <button
-            type="button"
-            onClick={this.reload}
-            style={{
-              background: '#1C1C1E',
-              color: '#fff',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: 6,
-              padding: '6px 14px',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
+          <button type="button" onClick={this.reload} style={filledPillButtonStyle}>
             Reload UI
           </button>
-          <button
-            type="button"
-            onClick={this.copyLogs}
-            style={{
-              background: 'transparent',
-              color: '#fff',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: 6,
-              padding: '6px 14px',
-              fontSize: 13,
-              cursor: 'pointer',
-            }}
-          >
+          <button type="button" onClick={this.copyLogs} style={pillButtonStyle}>
             Copy logs
           </button>
         </div>
-        <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.45 }}>
+        <div style={{ fontSize: 12, fontWeight: 400, color: MUTED }}>
           The error has been written to the TONE3000 log file.
         </div>
       </div>

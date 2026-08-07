@@ -33,8 +33,13 @@ void TONE3000Editor::parentHierarchyChanged() {
   // off, which kills hover/cursor feedback in the WKWebView (clicks still
   // work). Re-apply on every reparent since hosts can recreate the window
   // when the editor is closed and reopened.
-  if (auto* peer = getPeer())
+  if (auto* peer = getPeer()) {
     EditorWebViewSetup::enableHostWindowMouseMovedEvents(peer->getNativeHandle());
+    // Same timing: the WKWebView flashes its system-grey background between
+    // window creation and the page's first paint; make it draw none so the
+    // black window shows through instead.
+    EditorWebViewSetup::applyBlackWebViewBackground(peer->getNativeHandle());
+  }
 #endif
 
   // Trigger the WebView load only once the editor has a real top-level
@@ -90,6 +95,13 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
   // resize limits already snaps the editor to the 1x minimum, and resized()
   // writes that back through processor.editorScale.
   const double savedScale = juce::jlimit(1.0, kMaxScale, processor.editorScale.load());
+  // Pre-size for the persistent chrome the UI renders on first paint (the
+  // hint bar preference survives sessions). Without this the window opens at
+  // the bare design height, the first React commit overflows it, and the
+  // post-paint height report grows the window a beat later: a visible
+  // two-step launch jank. The banner is excluded (it's genuinely dynamic and
+  // animates in when its state resolves).
+  extraContentHeight = juce::jlimit(0, 160, processor.editorExtraHeight.load());
   updateResizeConstraints();
   applyScaledSize(savedScale);
 }
@@ -106,7 +118,7 @@ void TONE3000Editor::updateResizeConstraints() {
   getConstrainer()->setFixedAspectRatio(static_cast<double>(kWidth) / totalHeight());
 }
 
-void TONE3000Editor::setExtraContentHeight(int pixels) {
+void TONE3000Editor::setExtraContentHeight(int pixels, int persistentPixels) {
   // setSize() reaches the host as a resize request through the plugin
   // wrapper (resizeView in VST3), so this works in DAWs too; a host that
   // refuses keeps the old size and the webview scrolls. Standalone resizes
@@ -114,11 +126,26 @@ void TONE3000Editor::setExtraContentHeight(int pixels) {
   // The UI reports design-space pixels; the window change is scaled.
   // Generous ceiling: banner (~44) + hint bar (~36) with headroom to spare.
   const int clamped = juce::jlimit(0, 160, pixels);
+  // Remember the session-persistent portion (the hint bar; the banner is
+  // dynamic) even when the window size itself doesn't change, so the next
+  // editor opens pre-sized for the chrome the UI will render on first paint.
+  processor.editorExtraHeight.store(juce::jlimit(0, 160, persistentPixels));
   if (clamped == extraContentHeight)
     return;
   const double scale = currentScale();
   extraContentHeight = clamped;
-  updateResizeConstraints();
+  // Update the constrainer directly instead of via updateResizeConstraints():
+  // setResizeLimits() immediately re-applies the constrainer to the *current*
+  // bounds, and mid-change (new limits, stale size) the fixed-aspect pass can
+  // snap the WIDTH for a frame. The web UI derives its CSS zoom from the
+  // width, so that transient reads as a whole-UI scale flash. Setting the
+  // constrainer values is pure bookkeeping; the single setSize below then
+  // moves straight to the final, already-consistent box.
+  if (auto* c = getConstrainer()) {
+    c->setSizeLimits(kWidth, totalHeight(), juce::roundToInt(kWidth * kMaxScale),
+                     juce::roundToInt(totalHeight() * kMaxScale));
+    c->setFixedAspectRatio(static_cast<double>(kWidth) / totalHeight());
+  }
   applyScaledSize(scale);
 }
 

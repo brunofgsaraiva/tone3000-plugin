@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { X as XIcon, Plug, MonitorSpeaker } from 'lucide-react';
+import { X as XIcon, Laptop, Info, Gauge } from 'lucide-react';
 import { useParameter } from '../hooks/useParameter';
 import { useNativeFunction } from '../hooks/useFunction';
 import { setHintsEnabled, useHintsEnabled } from './helpText';
@@ -10,10 +10,11 @@ import {
 import type { UpdateNoticeData } from '../hooks/useUpdateNotice';
 import type { AudioDevice } from '../hooks/useAudioDevice';
 import type { ChainItem } from '../types/chain';
-import { GRAY, SUBTLE } from './theme';
+import { GRAY, LINK_BLUE, SUBTLE, WHITE } from './theme';
 import {
   FIELD_BORDER,
   RadioOption,
+  SECTION_GAP,
   SelectField,
   ToggleRow,
   ctaButtonStyle,
@@ -29,15 +30,13 @@ const CALIBRATION_DOCS_URL =
   'https://neural-amp-modeler.readthedocs.io/en/latest/tutorials/calibration.html';
 
 /**
- * Settings: full-window takeover, tabbed between Plugin Settings (info bar,
- * MIDI / Advanced entry points) and System Settings (the bespoke audio
- * device + MIDI hardware panel). MIDI Mapping and Advanced are sub-screens
- * of the plugin tab; the header X steps back. The System tab only exists
- * in the standalone app (hosts own devices, sample rate and buffer size
- * arrive as facts from the DAW), and with one tab the tab bar drops away.
+ * Settings: full-window takeover, tabbed between System Settings (the
+ * bespoke audio device + MIDI hardware panel; first because setup is the
+ * main abandon risk) and Plugin Settings (one scrollable screen of options,
+ * including inline MIDI Mapping). The System tab only exists in the
+ * standalone app (hosts own devices, sample rate and buffer size arrive as
+ * facts from the DAW), and with one tab the tab bar drops away.
  */
-
-type PluginScreen = 'main' | 'midi' | 'advanced';
 
 export type SettingsTab = 'plugin' | 'system';
 
@@ -49,22 +48,22 @@ interface SettingsProps {
   standalone: boolean;
   /** Shared audio device state/actions (also drives the app banner). */
   device: AudioDevice;
-  /** Tab to open on (banner actions land directly on System). */
+  /** Tab to open on (defaults to System; banner actions land there too). */
   initialTab?: SettingsTab;
   /** Running build version ("" outside the plugin). */
   version: string;
   /** Newer published build, if the startup check found one (even if the
       startup modal was dismissed); shows an update button in the footer. */
   update: UpdateNoticeData | null;
-  /** Global NAM A2 size (machine-wide; false = lite, true = full). */
+  /** Global NAM A2 size (false = lite, true = full). */
   namFullSize: boolean;
   onNamFullSizeChange: (full: boolean) => void;
-  /** Multi-core stereo (machine-wide; processes the two stereo chains on
-      separate CPU cores). */
+  /** Multi-core stereo (processes the two stereo chains on separate CPU
+      cores). */
   multiCore: boolean;
   onMultiCoreChange: (enabled: boolean) => void;
-  /** Chain lanes; the MIDI mapping screen names block-power targets after
-      the tone currently in each slot. `chainRight` is null outside stereo. */
+  /** Chain lanes; MIDI Mapping names block-power targets after the tone
+      currently in each slot. `chainRight` is null outside stereo. */
   chain: ChainItem[];
   chainRight: ChainItem[] | null;
 }
@@ -77,21 +76,22 @@ const OS_FACTOR_OPTIONS: { value: '0' | '1' | '2'; label: string }[] = [
   { value: '2', label: '8X' },
 ];
 
-// The machine-wide NAM A2 size: one tier for every NAM block. The info bar
-// carries a secondary LITE/FULL toggle for the same setting.
+// NAM A2 size: one tier for every NAM block. The info bar carries a
+// secondary LITE/FULL toggle for the same setting.
 const NAM_A2_SIZE_OPTIONS: { full: boolean; label: string; description: string }[] = [
   { full: false, label: 'A2-Lite', description: 'Sounds great and uses less CPU' },
   { full: true, label: 'A2-Full', description: 'Maximum accuracy model' },
 ];
 
-/** Full-width tab bar (mockup style: icon + label, active underline). */
+/** Full-width tab bar (mockup style: optional icon + label, active underline).
+ *  System first: device setup is the main abandon risk. */
 const TabBar: React.FC<{
   active: SettingsTab;
   onChange: (tab: SettingsTab) => void;
 }> = ({ active, onChange }) => {
-  const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
-    { id: 'plugin', label: 'Plugin Settings', icon: <Plug size={16} /> },
-    { id: 'system', label: 'System Settings', icon: <MonitorSpeaker size={16} /> },
+  const tabs: { id: SettingsTab; label: string; icon?: React.ReactNode }[] = [
+    { id: 'system', label: 'System Settings', icon: <Laptop size={16} /> },
+    { id: 'plugin', label: 'Plugin Settings' },
   ];
   return (
     <div
@@ -136,7 +136,7 @@ export const Settings: React.FC<SettingsProps> = ({
   onClose,
   standalone,
   device,
-  initialTab = 'plugin',
+  initialTab = 'system',
   version,
   update,
   namFullSize,
@@ -147,7 +147,6 @@ export const Settings: React.FC<SettingsProps> = ({
   chainRight,
 }) => {
   const [tab, setTab] = useState<SettingsTab>(standalone ? initialTab : 'plugin');
-  const [screen, setScreen] = useState<PluginScreen>('main');
 
   const hintsEnabled = useHintsEnabled();
   const blockNormalizeControlEnabled = useBlockNormalizeControlEnabled();
@@ -198,16 +197,6 @@ export const Settings: React.FC<SettingsProps> = ({
     setTimeout(() => setLogStatus(null), 3000);
   }, [revealLogs]);
 
-  // One control: the X steps a sub-screen back to main, and closes from
-  // there, with no separate back button.
-  const handleHeaderClose = useCallback(() => {
-    if (screen !== 'main') setScreen('main');
-    else onClose();
-  }, [onClose, screen]);
-
-  const headerTitle =
-    screen === 'advanced' ? 'Advanced' : screen === 'midi' ? 'MIDI Mapping' : 'Settings';
-
   const header = (
     <div
       style={{
@@ -217,11 +206,9 @@ export const Settings: React.FC<SettingsProps> = ({
         marginBottom: '20px',
       }}
     >
-      <span style={{ fontSize: '22px', fontWeight: 600, color: '#ffffff' }}>
-        {headerTitle}
-      </span>
+      <span style={{ fontSize: '22px', fontWeight: 600, color: '#ffffff' }}>Settings</span>
       <button
-        onClick={handleHeaderClose}
+        onClick={onClose}
         style={{
           background: 'transparent',
           border: 'none',
@@ -237,75 +224,23 @@ export const Settings: React.FC<SettingsProps> = ({
     </div>
   );
 
-  const pluginMainScreen = (
+  const pluginTab = (
     <>
       <ToggleRow
         label="Info Bar"
-        description="Bar under the faceplate with hover help for controls, the NAM LITE/FULL toggle, and CPU load."
+        description="Strip under the faceplate with hover tips, LITE/FULL, and CPU load."
         value={hintsEnabled}
         onChange={setHintsEnabled}
       />
 
-      {/* MIDI Learn/mapping is plugin-level (reads the processor's MIDI
-          buffer), so it belongs here and works in DAW builds too. */}
-      <div style={{ marginBottom: '36px' }}>
-        <span style={sectionLabelStyle}>MIDI Mapping</span>
-        <p style={{ ...descriptionStyle, marginBottom: '16px' }}>
-          Control the plugin from pedals and knobs. Mappings are saved with the
-          plugin and work in your DAW too.
-        </p>
-        <button onClick={() => setScreen('midi')} style={ctaButtonStyle}>
-          MIDI Mapping
-        </button>
-      </div>
-
-      <div style={{ marginBottom: '36px' }}>
-        <span style={sectionLabelStyle}>Advanced</span>
-        <p style={{ ...descriptionStyle, marginBottom: '16px' }}>
-          NAM A2 size, normalization, calibration and diagnostics.
-        </p>
-        <button onClick={() => setScreen('advanced')} style={ctaButtonStyle}>
-          Advanced
-        </button>
-      </div>
-
-      {/* Version footer. When the startup check found a newer build (even if
-          its modal was dismissed), offer the update here too. */}
-      {(version || update) && (
-        <div style={{ marginTop: '8px' }}>
-          {update && (
-            <a
-              href={update.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                ...ctaButtonStyle,
-                display: 'block',
-                boxSizing: 'border-box',
-                textDecoration: 'none',
-                marginBottom: '12px',
-              }}
-            >
-              Update to v{update.version}
-            </a>
-          )}
-          {version && (
-            <p style={{ ...descriptionStyle, fontSize: '12px', color: SUBTLE, margin: 0 }}>
-              TONE3000 v{version}
-            </p>
-          )}
-        </div>
-      )}
-    </>
-  );
-
-  const advancedScreen = (
-    <>
-      <div style={{ marginBottom: '32px' }} role="radiogroup" aria-label="NAM A2 Size">
+      <div
+        style={{ marginBottom: `${SECTION_GAP}px` }}
+        role="radiogroup"
+        aria-label="NAM A2 Size"
+      >
         <span style={sectionLabelStyle}>NAM A2 Size</span>
         <p style={{ ...descriptionStyle, marginBottom: '18px' }}>
-          One size for every NAM tone on this machine. Also switchable from the LITE/FULL
-          toggle in the info bar.
+          Applies to every NAM tone; also switchable from LITE/FULL in the info bar.
         </p>
         {NAM_A2_SIZE_OPTIONS.map((option) => (
           <RadioOption
@@ -327,7 +262,7 @@ export const Settings: React.FC<SettingsProps> = ({
 
       <ToggleRow
         label="Calibration"
-        description="Matches your input level to the level the capture was made at, for accurate gain staging. Also passes true-to-life levels between captures in the chain when the capture data allows."
+        description="Matches your input level to the capture's original recording level, for accurate gain staging."
         value={calibrationEnabled}
         onChange={setCalibrationEnabled}
       >
@@ -342,9 +277,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 }
                 .settings-number-input:focus { outline: none; }`}
             </style>
-            {/* 232px field with "dBu" pinned to the right; padding-right
-                leaves room so typed values never run under the unit. */}
-            <div style={{ position: 'relative', width: '232px' }}>
+            <div style={{ position: 'relative', width: '100%' }}>
               <input
                 type="number"
                 className="settings-number-input"
@@ -389,10 +322,38 @@ export const Settings: React.FC<SettingsProps> = ({
                 href={CALIBRATION_DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ color: '#ffffff', textDecoration: 'underline' }}
+                style={{ color: LINK_BLUE, textDecoration: 'none' }}
               >
                 Learn More
               </a>
+            </p>
+            <p
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '8px',
+                margin: '14px 0 0',
+                fontSize: '12px',
+                fontWeight: 400,
+                color: WHITE,
+                lineHeight: 1.45,
+              }}
+            >
+              <Info size={14} style={{ flexShrink: 0, marginTop: '1px', color: WHITE }} aria-hidden />
+              <span>
+                Captures that include calibration data show a{' '}
+                <Gauge
+                  size={12}
+                  style={{
+                    display: 'inline',
+                    verticalAlign: '-1px',
+                    margin: '0 2px',
+                    color: WHITE,
+                  }}
+                  aria-label="gauge"
+                />{' '}
+                icon on their block and it’s enabled by default.
+              </span>
             </p>
           </div>
         )}
@@ -422,7 +383,7 @@ export const Settings: React.FC<SettingsProps> = ({
           >
             Rate
           </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ width: '148px', flexShrink: 0 }}>
             <SelectField
               value={String(osFactorIndex) as '0' | '1' | '2'}
               options={OS_FACTOR_OPTIONS}
@@ -441,7 +402,18 @@ export const Settings: React.FC<SettingsProps> = ({
         onChange={onMultiCoreChange}
       />
 
-      <div>
+      {/* MIDI Learn/mapping is plugin-level (reads the processor's MIDI
+          buffer), so it belongs here and works in DAW builds too. */}
+      <div style={{ marginBottom: `${SECTION_GAP}px` }}>
+        <span style={sectionLabelStyle}>MIDI Mapping</span>
+        <p style={{ ...descriptionStyle, marginBottom: '16px' }}>
+          Control the plugin from pedals and knobs. Mappings are saved with the plugin and work in
+          your DAW too.
+        </p>
+        <MidiMapSettings chain={chain} chainRight={chainRight} />
+      </div>
+
+      <div style={{ marginBottom: `${SECTION_GAP}px` }}>
         <span style={sectionLabelStyle}>Diagnostics</span>
         <p style={{ ...descriptionStyle, marginBottom: '16px' }}>
           Copy recent diagnostic logs to the clipboard and paste them into a bug report.
@@ -466,17 +438,36 @@ export const Settings: React.FC<SettingsProps> = ({
           <p style={{ ...descriptionStyle, fontSize: '12px', marginTop: '8px' }}>{logStatus}</p>
         )}
       </div>
+
+      {/* Version footer. When the startup check found a newer build (even if
+          its modal was dismissed), offer the update here too. */}
+      {(version || update) && (
+        <div style={{ marginTop: '8px' }}>
+          {update && (
+            <a
+              href={update.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                ...ctaButtonStyle,
+                display: 'block',
+                boxSizing: 'border-box',
+                textDecoration: 'none',
+                marginBottom: '12px',
+              }}
+            >
+              Update to v{update.version}
+            </a>
+          )}
+          {version && (
+            <p style={{ ...descriptionStyle, fontSize: '12px', color: SUBTLE, margin: 0 }}>
+              TONE3000 v{version}
+            </p>
+          )}
+        </div>
+      )}
     </>
   );
-
-  const pluginTab =
-    screen === 'advanced' ? (
-      advancedScreen
-    ) : screen === 'midi' ? (
-      <MidiMapSettings chain={chain} chainRight={chainRight} />
-    ) : (
-      pluginMainScreen
-    );
 
   return (
     <div
@@ -501,14 +492,9 @@ export const Settings: React.FC<SettingsProps> = ({
         }}
       >
         {header}
-        {/* One tab (hosted) = no tab bar. Sub-screens hide it too; they're
-            under the plugin tab, and the header X steps back. */}
-        {standalone && screen === 'main' && <TabBar active={tab} onChange={setTab} />}
-        {tab === 'system' && standalone && screen === 'main' ? (
-          <SystemSettings device={device} />
-        ) : (
-          pluginTab
-        )}
+        {/* One tab (hosted) = no tab bar. */}
+        {standalone && <TabBar active={tab} onChange={setTab} />}
+        {tab === 'system' && standalone ? <SystemSettings device={device} /> : pluginTab}
       </div>
     </div>
   );

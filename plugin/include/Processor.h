@@ -237,6 +237,12 @@ public:
   // the message thread.
   std::atomic<double> editorScale{1.0};
 
+  // Extra window height (design px) for persistent chrome strips, currently
+  // just the hint bar. Persisted like editorScale so the next editor opens at
+  // the height the UI's first paint will actually need, instead of growing a
+  // beat after launch. Dynamic strips (the standalone banner) are excluded.
+  std::atomic<int> editorExtraHeight{0};
+
   // Which lane loadTone falls back to ("left"/"right") when no valid target
   // insert id is supplied. The UI sets this before launching the Select flow
   // so the choice survives the OAuth redirect. Not a view mode and not part

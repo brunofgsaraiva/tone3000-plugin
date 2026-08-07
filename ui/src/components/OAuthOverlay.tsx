@@ -1,7 +1,7 @@
 import React from 'react';
 import type { OAuthPhase } from '../hooks/useT3kSelect';
 import { LoadingDots } from './LoadingDots';
-import { pillButtonStyle } from './theme';
+import { filledPillButtonStyle, pillButtonStyle } from './theme';
 
 interface OAuthOverlayProps {
   phase: OAuthPhase;
@@ -52,10 +52,10 @@ export const OAuthOverlay: React.FC<OAuthOverlayProps> = ({ phase, error, onRetr
             {error ?? 'Something went wrong completing TONE3000 sign-in.'}
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
-            <button type="button" onClick={onRetry} style={pillButtonStyle()}>
+            <button type="button" onClick={onRetry} style={filledPillButtonStyle}>
               Try again
             </button>
-            <button type="button" onClick={onDismiss} style={pillButtonStyle(false)}>
+            <button type="button" onClick={onDismiss} style={pillButtonStyle}>
               Dismiss
             </button>
           </div>

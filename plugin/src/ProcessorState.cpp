@@ -166,6 +166,7 @@ void TONE3000Processor::getStateInformation(juce::MemoryBlock& destData) {
   // MIDI map describes the user's rig, not the tone.
   state.setProperty("inputMode", inputModeToString(getInputMode()), nullptr);
   state.setProperty("editorScale", editorScale.load(), nullptr);
+  state.setProperty("editorExtraHeight", editorExtraHeight.load(), nullptr);
   state.appendChild(midiMapper.toValueTree(), nullptr);
 
   {
@@ -225,6 +226,7 @@ void TONE3000Processor::setStateInformation(const void* data, int sizeInBytes) {
   // Older projects have no editorScale; keep the 1x default. The editor
   // clamps to its supported range when it reads this.
   editorScale.store(static_cast<double>(state.getProperty("editorScale", 1.0)));
+  editorExtraHeight.store(static_cast<int>(state.getProperty("editorExtraHeight", 0)));
 
   // A missing child clears the map; a project without mappings must not
   // inherit the previous session's.

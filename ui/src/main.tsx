@@ -14,3 +14,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <App />
   </React.StrictMode>
 );
+
+// Breadcrumb in TONE3000.log (console.* is forwarded natively): confirms the
+// UI booted and the log-forwarding pipeline works in every session.
+console.log('TONE3000 UI booted');

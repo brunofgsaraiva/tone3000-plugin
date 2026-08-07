@@ -1,13 +1,13 @@
 import React from 'react';
 import { RotateCcw } from 'lucide-react';
 import { HELP, helpProps } from './helpText';
-import { pillButtonStyle } from './theme';
+import { filledPillButtonStyle } from './theme';
 
 /**
  * Failed-download state for a chain block (`block.loadFailed`): replaces the
  * loading dots with a short message and a retry button. Rendered over the
- * dimmed tone artwork on both the gallery tile and the detail card: the
- * house pill CTA, with a dark backing so it reads on any art.
+ * dimmed tone artwork on both the gallery tile and the detail card. Uses the
+ * filled primary pill so Retry reads as the one recovery action.
  */
 export const RetryLoadBadge: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
   <div
@@ -30,11 +30,10 @@ export const RetryLoadBadge: React.FC<{ onRetry: () => void }> = ({ onRetry }) =
       }}
       {...helpProps(HELP.retryLoad)}
       style={{
-        ...pillButtonStyle(),
+        ...filledPillButtonStyle,
         gap: 6,
         padding: '5px 12px',
         fontSize: 12,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
       }}
     >
       <RotateCcw size={12} />

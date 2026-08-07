@@ -62,8 +62,8 @@ const EMPTY_COPY: Record<StreamKind, string> = {
   created: 'Tones you upload to TONE3000 will show up here.',
 };
 
-const SIGN_IN_HEADING = 'Sign in to see your tones and discover a zillion new ones.';
-const DISCOVER_MORE_HEADING = 'Discover a zillion more tones.';
+const SIGN_IN_HEADING = 'Sign in to see your tones and discover zillions more.';
+const DISCOVER_MORE_HEADING = 'Discover zillions more tones.';
 
 const PAGE_SIZE = 12;
 
@@ -137,12 +137,11 @@ const StreamTabs: React.FC<{ active: StreamKind; onChange: (s: StreamKind) => vo
     and mark scale up with it rather than sitting undersized in the extra
     height. */
 const browseButtonStyle: React.CSSProperties = {
-  ...pillButtonStyle(),
+  ...pillButtonStyle,
   height: '40px',
   padding: '0 22px',
   gap: '10px',
   fontSize: '15px',
-  fontWeight: 400,
 };
 
 /** Outline pill CTA that opens the full-catalog Select flow: the header's
@@ -253,7 +252,7 @@ const SignInPrompt: React.FC<{ heading: string; onSignIn: () => void }> = ({
     }}
   >
     <T3kMark height={28} />
-    <span style={{ fontSize: '14px', fontWeight: 400, color: '#ffffff', maxWidth: '340px' }}>
+    <span style={{ fontSize: '14px', fontWeight: 400, color: '#ffffff', maxWidth: '420px' }}>
       {heading}
     </span>
     <button type="button" onClick={onSignIn} style={filledPillButtonStyle}>
@@ -648,16 +647,15 @@ export const ToneBrowser: React.FC<ToneBrowserProps> = ({
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: '14px',
-            padding: '64px 0',
-            color: MUTED,
-            fontSize: '13px',
-            fontWeight: 400,
+            gap: '16px',
+            padding: '48px 24px',
             textAlign: 'center',
           }}
         >
-          {error}
-          <button onClick={() => setRetryKey((k) => k + 1)} style={pillButtonStyle()}>
+          <span style={{ fontSize: '14px', fontWeight: 400, color: WHITE, maxWidth: '340px' }}>
+            {error}
+          </span>
+          <button onClick={() => setRetryKey((k) => k + 1)} style={filledPillButtonStyle}>
             Try again
           </button>
         </div>

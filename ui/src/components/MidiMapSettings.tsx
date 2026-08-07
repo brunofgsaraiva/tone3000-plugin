@@ -1,22 +1,21 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import { RotateCcw, X } from 'lucide-react';
 import { useMidiMap } from '../hooks/useMidiMap';
 import type { MidiMapping } from '../types/midiMap';
 import type { ChainItem, ToneBlock } from '../types/chain';
-import { FieldRow, FIELD_BORDER, SelectField, captionStyle, ctaButtonStyle } from './controls';
+import { FieldRow, FIELD_BORDER, SelectField, captionStyle } from './controls';
 import { MAPPABLE_TARGETS, behaviorLabel, sourceLabel, targetById } from './midiCatalog';
 import { BORDER, MUTED, SUBTLE, BRAND_YELLOW } from './theme';
 
 /**
- * MIDI Mapping sub-screen (Plugin Settings): control the plugin from pedals
- * and knobs. Opened from the main plugin settings screen, same pattern as
- * Advanced. Lives under Plugin Settings (not System) because the map reads
+ * MIDI Mapping (inline in Plugin Settings): control the plugin from pedals
+ * and knobs. Lives under Plugin Settings (not System) because the map reads
  * the processor's MIDI buffer, so it works identically in DAW builds where
  * the System tab doesn't exist. Mappings serialize with plugin state.
  *
  * Learn flow: pick a target (or hit re-learn on a row), then move a hardware
  * control; the first CC / note-on wins. The engine owns the armed state
- * (this component just renders it), so learn survives screen switches and
+ * (this component just renders it), so learn survives tab switches and
  * completes from the hardware side via the midiMapChanged event.
  *
  * Rows are two lines (target on the left, where block powers show the tone
@@ -203,8 +202,6 @@ export const MidiMapSettings: React.FC<{
   chainRight: ChainItem[] | null;
 }> = ({ chain, chainRight }) => {
   const { state, actions } = useMidiMap(true);
-  // "+ Add mapping" swaps to a target picker; choosing one arms learn.
-  const [picking, setPicking] = useState(false);
 
   const learnTargetId = state?.learnTargetId ?? '';
 
@@ -262,7 +259,6 @@ export const MidiMapSettings: React.FC<{
   if (!state) return null;
 
   const startLearn = (targetId: string) => {
-    setPicking(false);
     actions.startLearn(targetId);
   };
 
@@ -319,12 +315,12 @@ export const MidiMapSettings: React.FC<{
                 color: SUBTLE,
               }}
             >
-              No mappings yet. Add one, then move a control on your MIDI device.
+              No mappings yet. Choose a control, then move it on your MIDI device.
             </p>
           )}
         </div>
 
-        {picking ? (
+        {unmappedOptions.length > 0 && (
           <div style={{ marginTop: '12px' }}>
             <SelectField
               value={null}
@@ -334,23 +330,6 @@ export const MidiMapSettings: React.FC<{
               ariaLabel="Control to map"
             />
           </div>
-        ) : (
-          <button
-            onClick={() => setPicking(true)}
-            disabled={unmappedOptions.length === 0}
-            style={{
-              ...ctaButtonStyle,
-              marginTop: '12px',
-              boxSizing: 'border-box',
-              ...(unmappedOptions.length === 0 && {
-                border: FIELD_BORDER,
-                color: SUBTLE,
-                cursor: 'default',
-              }),
-            }}
-          >
-            Add Mapping
-          </button>
         )}
         <p style={{ ...captionStyle, marginTop: '10px' }}>
           Map Previous / Next Preset to step through presets from CC or note buttons. Program

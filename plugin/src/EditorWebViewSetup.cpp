@@ -503,9 +503,14 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
       .withNativeFunction(
           // The UI reports the combined height of its chrome strips (banner +
           // hint bar) so the window grows instead of squishing the plugin UI.
-          // In hosts this becomes a resize request to the DAW.
+          // In hosts this becomes a resize request to the DAW. The optional
+          // second arg is the session-persistent portion (the hint bar, not
+          // the banner), used to pre-size the next editor at launch.
           "setExtraContentHeight", guarded(1, false, [editor](const juce::Array<juce::var>& args) {
-            editor->setExtraContentHeight(static_cast<int>(coerceDouble(args[0])));
+            const int total = static_cast<int>(coerceDouble(args[0]));
+            const int persistent =
+                args.size() > 1 ? static_cast<int>(coerceDouble(args[1])) : total;
+            editor->setExtraContentHeight(total, persistent);
             return juce::var(true);
           }))
       // --- Meters / tuner / auto-balance -------------------------------------
@@ -620,7 +625,10 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
           }))
       .withUserScript(R"(
             document.documentElement.style.backgroundColor = '#000000';
-            document.body.style.backgroundColor = '#000000';
+            // This script runs at document start, where document.body is still
+            // null; touching it directly throws and silently kills the rest of
+            // this script (including the console-forwarding shim below).
+            if (document.body) document.body.style.backgroundColor = '#000000';
 
             // Forward WebView console output to the native logger so it is
             // captured in the on-disk log even in release builds.
@@ -633,9 +641,24 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
                       try { return JSON.stringify(p); } catch (e) { return String(p); }
                     })
                     .join(' ');
-                  window.__JUCE__.backend.callFunction('webLog', [level, text]);
+                  // The raw __juce__invoke protocol (what getNativeFunction
+                  // wraps). window.__JUCE__.backend only exists once the app
+                  // bundle has loaded (it's defined by the JUCE frontend
+                  // module compiled into main.js), so fall back to the bare
+                  // postMessage the native bootstrap provides at document
+                  // start; backend.emitEvent is just this JSON envelope.
+                  // resultId -1 is fire-and-forget: no PromiseHandler entry
+                  // ever matches it.
+                  const payload = {
+                    eventId: '__juce__invoke',
+                    payload: { name: 'webLog', params: [level, text], resultId: -1 },
+                  };
+                  if (window.__JUCE__.backend)
+                    window.__JUCE__.backend.emitEvent(payload.eventId, payload.payload);
+                  else
+                    window.__JUCE__.postMessage(JSON.stringify(payload));
                 } catch (e) {
-                  /* backend not ready yet; drop this line */
+                  /* bridge not available (plain-browser dev); drop this line */
                 }
               };
               ['log', 'info', 'warn', 'error', 'debug'].forEach((level) => {

@@ -120,11 +120,12 @@ const BANNER_RULES: BannerRule[] = [
       state.feedbackRisk ? (
         <>
           <b>Input muted to prevent feedback.</b> You’re using a microphone with speakers. Plug in
-          headphones or an interface, then turn Hear Yourself on.
+          headphones or an interface, then turn <b>&ldquo;Hear Yourself&rdquo;</b> on.
         </>
       ) : (
         <>
-          <b>Input is muted.</b> Turn Hear Yourself on so the plugin can hear your instrument.
+          <b>Input is muted.</b> Turn <b>&ldquo;Hear Yourself&rdquo;</b> on so the plugin can hear
+          your instrument.
         </>
       ),
     action: { label: 'Open Settings', kind: 'openSettings' },
@@ -139,8 +140,8 @@ const BANNER_RULES: BannerRule[] = [
     when: (state) => state.feedbackRisk && state.hearYourself,
     content: () => (
       <>
-        <b>Feedback risk.</b> Your mic can hear your speakers. Use headphones, or turn Hear Yourself
-        off.
+        <b>Feedback risk.</b> Your mic can hear your speakers. Use headphones, or turn{' '}
+        <b>&ldquo;Hear Yourself&rdquo;</b> off.
       </>
     ),
     action: { label: 'Open Settings', kind: 'openSettings' },
