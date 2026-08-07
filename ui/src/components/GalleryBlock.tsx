@@ -15,7 +15,8 @@ import { ChromeIconButton } from './ChromeIconButton';
 import { TileMenu } from './TileMenu';
 import type { TileMenuAnchor } from './TileMenu';
 import { copyBlock } from '../hooks/useBlockClipboard';
-import { ICON_SIZE, SURFACE, SURFACE_RAISED } from './theme';
+import { useToast } from './Toast';
+import { HIGHLIGHT, ICON_SIZE, SURFACE, SURFACE_RAISED } from './theme';
 
 /**
  * Gallery view of a chain block: a square tone image with quick actions
@@ -151,6 +152,7 @@ const TileSurface: React.FC<{
             src={tone.images?.[0]}
             alt={tone.title}
             gear={tone.gear}
+            local={tone.local}
             boxSize={size}
             draggable={false}
           />
@@ -386,12 +388,37 @@ interface AddTileProps {
 
 /** The insert slot as a dashed add tile, sortable so the insert point can be
     repositioned within its lane, like any other block. Routing lines continue
-    the lane's connector line through to the plus circle. */
+    the lane's connector line through to the plus circle. Also the drop zone
+    for local .nam / IR .wav files (loaded natively, no browser flow). */
 export const AddTile: React.FC<AddTileProps> = ({ id, size, routing, onClick, onPaste = null }) => {
   const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick } = useTileMenu();
+  const actions = useChainActions();
+  const toast = useToast();
+  // True while an OS file drag hovers the tile (drop-target highlight).
+  const [dropArmed, setDropArmed] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id,
   });
+
+  // The global drop swallow (main.tsx) only stops the webview navigating
+  // away; accepting the drop here still needs the dragover cancelled with
+  // the file-copy effect, or the OS shows a rejection cursor.
+  const handleDragOver = (e: React.DragEvent) => {
+    if (!e.dataTransfer.types.includes('Files')) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+    setDropArmed(true);
+  };
+
+  const handleDrop = async (e: React.DragEvent) => {
+    e.preventDefault();
+    setDropArmed(false);
+    // The item (not files[0]): folders only surface through the entry API.
+    const item = e.dataTransfer.items[0];
+    if (!item) return;
+    const error = await actions.loadLocalFile(id, item);
+    if (error) toast.show(error);
+  };
 
   const routingLine = (edge: 'left' | 'right') => (
     <div
@@ -414,11 +441,15 @@ export const AddTile: React.FC<AddTileProps> = ({ id, size, routing, onClick, on
         onClick();
       }}
       onContextMenu={openMenu}
+      onDragOver={handleDragOver}
+      onDragLeave={() => setDropArmed(false)}
+      onDrop={handleDrop}
       {...attributes}
       {...listeners}
       {...helpProps(HELP.addTile)}
       style={{
         ...addTileFaceStyle(size),
+        backgroundColor: dropArmed ? HIGHLIGHT : SURFACE_RAISED,
         transform: CSS.Translate.toString(transform),
         transition: isDragging ? 'none' : transition,
         opacity: isDragging ? 0 : 1,

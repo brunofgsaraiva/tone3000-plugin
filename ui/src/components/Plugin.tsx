@@ -189,16 +189,20 @@ export const Plugin: React.FC = () => {
 
   // Switch a block's model. Native downloads the new model file itself, so
   // refresh-and-sync the token first; switching after the editor has been
-  // sitting idle is exactly when the last-pushed token has expired.
+  // sitting idle is exactly when the last-pushed token has expired. Local
+  // (drop-loaded) models switch from the on-disk stash instead: no download,
+  // no token, works signed out.
   const handleSwitchModel = useCallback(
-    async (blockId: string, modelId: number, model: Model) => {
-      try {
-        await ensureNativeAuth();
-      } catch (err) {
-        // Refresh token rejected: tokens are cleared, the model select
-        // disables itself on the next render, and the next + re-authenticates.
-        console.error('Cannot switch model: TONE3000 session expired', err);
-        return;
+    async (blockId: string, modelId: number, model: Pick<Model, 'id' | 'name' | 'model_url'>) => {
+      if (!model.model_url.startsWith('file:')) {
+        try {
+          await ensureNativeAuth();
+        } catch (err) {
+          // Refresh token rejected: tokens are cleared, the model select
+          // disables itself on the next render, and the next + re-authenticates.
+          console.error('Cannot switch model: TONE3000 session expired', err);
+          return;
+        }
       }
       const success = await actions.switchModel(blockId, modelId, JSON.stringify(model));
       if (!success) console.error('Failed to switch model');
@@ -240,6 +244,7 @@ export const Plugin: React.FC = () => {
   const chainActions = useMemo<ChainActions>(
     () => ({
       addModel: loadFlow.handleAddModel,
+      loadLocalFile: loadFlow.handleDropFile,
       removeBlock: actions.removeBlock,
       swapBlock: loadFlow.handleSwapBlock,
       shareBlock: handleShareBlock,
@@ -266,6 +271,7 @@ export const Plugin: React.FC = () => {
       handleShareBlock,
       handleSwitchModel,
       loadFlow.handleAddModel,
+      loadFlow.handleDropFile,
       loadFlow.handleSwapBlock,
       session.listToneModels,
     ]

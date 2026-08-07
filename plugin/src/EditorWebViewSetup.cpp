@@ -169,6 +169,18 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             return juce::var(editor->processor.loadTone(args[0].toString(), targetInsertId));
           }))
       .withNativeFunction(
+          // (title, files, targetInsertId?): local .nam/.wav file(s) dropped
+          // on an insert slot (one for a file, many for a folder). The
+          // webview can't hand over file paths, so the bytes ride the bridge
+          // as [{ name, data }] with base64 data; native validates, stashes
+          // and loads them as one block (see loadLocalTone). Returns
+          // { blockId } or a user-facing { error }.
+          "loadLocalTone", guarded(2, juce::var(), [editor](const juce::Array<juce::var>& args) {
+            const std::string targetInsertId =
+                args.size() >= 3 ? args[2].toString().toStdString() : std::string();
+            return editor->processor.loadLocalTone(args[0].toString(), args[1], targetInsertId);
+          }))
+      .withNativeFunction(
           // Replace the tone of an existing block (Swap action). Keeps the
           // block's chain position and user params.
           "swapTone", guarded(2, false, [editor](const juce::Array<juce::var>& args) {

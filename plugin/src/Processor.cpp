@@ -47,6 +47,10 @@ TONE3000Processor::TONE3000Processor()
 
   resolveParamRefs();
 
+  // Age out unused drop-loaded model stash files (no-op after the process's
+  // first instance).
+  cleanLocalModelStash();
+
   // Oversampling settings apply through a message-thread bounce (see
   // applyOversamplingSettings); the relays can fire from any thread.
   parameters.addParameterListener("osEnabled", this);

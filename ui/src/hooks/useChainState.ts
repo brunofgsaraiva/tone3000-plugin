@@ -52,6 +52,7 @@ export function useChainState() {
     () => ({
       getChainState: backend.getPluginFunction('getChainState'),
       loadTone: backend.getPluginFunction('loadTone'),
+      loadLocalTone: backend.getPluginFunction('loadLocalTone'),
       swapTone: backend.getPluginFunction('swapTone'),
       switchModel: backend.getPluginFunction('switchModel'),
       retryModelLoad: backend.getPluginFunction('retryModelLoad'),
@@ -131,6 +132,21 @@ export function useChainState() {
           to the new blockId ('' on failure). */
       loadTone: (toneJson: string, targetInsertId?: string) =>
         run<string>('loadTone', () => native.loadTone(toneJson, targetInsertId ?? '')),
+      /** Load dropped local file(s) as one block at an insert slot (a single
+          .nam/.wav, or a folder's files; bytes as base64). Native validates
+          each file (NAM must be A2). Resolves to a user-facing error
+          message, or null when the block was added. */
+      loadLocalTone: async (
+        title: string,
+        files: { name: string; data: string }[],
+        targetInsertId: string
+      ) => {
+        const res = await run<{ blockId?: string; error?: string } | null>('loadLocalTone', () =>
+          native.loadLocalTone(title, files, targetInsertId)
+        );
+        if (res?.blockId) return null;
+        return res?.error ?? "Couldn't load the file";
+      },
       /** Replace an existing block's tone in place (keeps position + params). */
       swapTone: (blockId: string, toneJson: string) =>
         run<boolean>('swapTone', () => native.swapTone(blockId, toneJson)),

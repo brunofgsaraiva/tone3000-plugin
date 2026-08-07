@@ -107,11 +107,18 @@ export interface ToneSummary {
   title: string;
   format?: string;
   gear?: string;
+  /** Drop-loaded local file(s) (no catalog metadata): the tile shows a file
+      glyph and the detail card drops share / counts; the model picker feeds
+      off `models` instead of the API. */
+  local?: boolean;
   /** First image only (block artwork). */
   images?: string[];
   user?: { username: string; avatar_url: string };
-  /** Only the active model; the picker pages the catalog from the API. */
-  models: { id: number; name: string }[];
+  /** Only the active model for catalog tones (the picker pages the catalog
+      from the API). Local tones carry all their dropped files, each with
+      its stash model_url: that's what a switch call needs, and there is no
+      catalog to fetch it from. */
+  models: { id: number; name: string; model_url?: string }[];
   /** Catalog totals (picker count). NAM uses `a2_models_count` because the plugin
       only loads v2 architectures. */
   models_count: number;

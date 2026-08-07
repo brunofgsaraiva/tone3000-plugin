@@ -1,4 +1,5 @@
 import React from 'react';
+import { File } from 'lucide-react';
 import { GRAY, SURFACE } from './theme';
 
 /**
@@ -311,18 +312,41 @@ export const GearImageFallback: React.FC<{ gear?: string; boxSize: number }> = (
 /**
  * Tone artwork with recovery: renders the image URL when present and swaps in
  * the gear-glyph fallback if it's missing or the network fetch fails (offline
- * / tone3000.com down). Fills its parent like a plain cover <img>.
+ * / tone3000.com down). Local-file blocks (drag-and-drop loads) show a file
+ * glyph instead: there is no artwork and no gear id to fall back to.
+ * Fills its parent like a plain cover <img>.
  */
 export const ToneImage: React.FC<{
   src: string | undefined;
   alt: string;
   gear?: string;
+  local?: boolean;
   boxSize: number;
   draggable?: boolean;
-}> = ({ src, alt, gear, boxSize, draggable }) => {
+}> = ({ src, alt, gear, local, boxSize, draggable }) => {
   const [failed, setFailed] = React.useState(false);
   // A new URL (tone swap/model switch) gets a fresh chance to load.
   React.useEffect(() => setFailed(false), [src]);
+
+  if (local) {
+    return (
+      <div
+        style={{
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: SURFACE,
+        }}
+      >
+        {/* Same recipe as the gear glyphs: GRAY at 40% of the box, and the
+            stroke weight scaled to their 6%-of-viewBox line width (1.2 on a
+            20-unit canvas ≈ 1.5 on Lucide's 24). */}
+        <File size={Math.round(boxSize * 0.4)} color={GRAY} strokeWidth={1.5} />
+      </div>
+    );
+  }
 
   if (!src || failed) return <GearImageFallback gear={gear} boxSize={boxSize} />;
   return (

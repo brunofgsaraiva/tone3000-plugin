@@ -185,7 +185,8 @@ export const HELP = {
   presetMoveDown: 'Move Down: one spot later.',
 
   // Chain gallery
-  addTile: 'Add Tone: browse TONE3000 for this slot. Right-click: paste · drag: move.',
+  addTile:
+    'Add Tone: browse TONE3000 for this slot, or drop a .nam or IR .wav file (or a folder of them). Right-click: paste · drag: move.',
   closeToneBrowser: 'Close: back to the chain.',
   copyBlock: 'Copy: copy this block (tone, model and all settings).',
   pasteBlock: 'Paste: add a copy of the copied block in this slot.',

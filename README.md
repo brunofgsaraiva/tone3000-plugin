@@ -9,6 +9,9 @@ the catalog, sign in, and add tones directly into your signal chain.
   plugin (OAuth 2.0 + PKCE via the
   [TONE3000 Select flow](https://www.tone3000.com/api#select)). Pick a tone
   and it lands in the chain with the right model or IR.
+- **Or drop local files.** Drag a `.nam` file (A2 architecture), an IR
+  `.wav`, or a folder of them onto a **+** slot; no account needed. Design
+  notes in [`plugin/docs/local-models.md`](plugin/docs/local-models.md).
 - **Build a signal chain.** Multiple NAM and IR blocks, per-block EQ and
   gain/mix, drag to reorder, dual chains in stereo mode with branching,
   undo/redo, and presets.
@@ -270,7 +273,7 @@ path (build instructions in its header).
 | Path            | Contents                                              |
 | --------------- | ----------------------------------------------------- |
 | `plugin/`       | C++ plugin: processor, DSP, editor, webview bridge; vendors NeuralAmpModelerCore and AudioDSPTools |
-| `plugin/docs/`  | Design docs (spread, oversampling, multi-core)        |
+| `plugin/docs/`  | Design docs (spread, oversampling, multi-core, local models) |
 | `ui/`           | React/TypeScript UI (see [ui/README.md](ui/README.md))|
 | `test/`         | GoogleTest DSP suite + test assets                    |
 | `script/`       | Build, packaging, and install helpers                 |

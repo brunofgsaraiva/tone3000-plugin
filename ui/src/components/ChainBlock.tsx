@@ -203,6 +203,12 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
     if (await actions.shareBlock(block)) toast.show('Link Copied');
   }, [actions, block, toast]);
 
+  // A drop-loaded local file (or folder of them): no catalog behind it, so
+  // the card keeps the sound controls and drops the catalog chrome (share,
+  // counts). The models are the dropped files themselves; the picker feeds
+  // off the tone's own model list.
+  const isLocal = tone.local === true;
+
   // Native persists only the block's *active* model; the full catalog (tones
   // max out at 300 models) is fetched client-side in one call per tone.
   // Signed out the picker is disabled (and the API needs the token anyway).
@@ -210,7 +216,7 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   const [modelsLoading, setModelsLoading] = useState(false);
 
   useEffect(() => {
-    if (!actions.authenticated) return;
+    if (isLocal || !actions.authenticated) return;
     let stale = false;
     setModels([]);
     setModelsLoading(true);
@@ -226,10 +232,11 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
     return () => {
       stale = true;
     };
-  }, [actions, tone.format, tone.id]);
+  }, [actions, isLocal, tone.format, tone.id]);
 
-  // Full catalog once loaded; just the active model until then.
-  const modelOptions = models.length ? models : tone.models;
+  // Local tones own their model list; catalog tones show the full catalog
+  // once loaded, just the active model until then.
+  const modelOptions = isLocal ? tone.models : models.length ? models : tone.models;
 
   const handleModelSelect = async (id: string) => {
     if (isSwitchingModel) return;
@@ -237,13 +244,14 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
     if (isNaN(newModelId) || newModelId === block.activeModelId) return;
 
     // Native only stores the active model, so the switch call carries the
-    // full model object from the fetched catalog.
-    const model = models.find((m) => m.id === newModelId);
-    if (!model) return;
+    // model object: from the fetched catalog, or the local tone's own list
+    // (whose entries ship their stash model_url).
+    const model = (isLocal ? tone.models : models).find((m) => m.id === newModelId);
+    if (!model?.model_url) return;
 
     setIsSwitchingModel(true);
     try {
-      await actions.switchModel(blockId, newModelId, model);
+      await actions.switchModel(blockId, newModelId, { ...model, model_url: model.model_url });
     } finally {
       setIsSwitchingModel(false);
     }
@@ -273,7 +281,8 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
   // kernel length and sets the mix on first load); Alt-click reset on Mix
   // must agree.
   const defaultMix = block.irLong ? 0.5 : 1;
-  // All NAM blocks are A2, so the badge is just the format name.
+  // Every NAM block in the chain is A2 (the browser filters the catalog and
+  // local drops are validated), so NAM badges always carry the A2 mark.
   const formatBadge = formatLabel(tone.format);
 
   // Picker's "n/N" total from the tone metadata (A2-only for NAM; that's
@@ -454,9 +463,11 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
               </ChromeTextButton>
             </div>
 
-            <ChromeIconButton help={HELP.shareTone} onClick={handleShare}>
-              <Share />
-            </ChromeIconButton>
+            {!isLocal && (
+              <ChromeIconButton help={HELP.shareTone} onClick={handleShare}>
+                <Share />
+              </ChromeIconButton>
+            )}
             <ChromeIconButton help={HELP.swapTone} onClick={() => actions.swapBlock(blockId)}>
               <ArrowLeftRight />
             </ChromeIconButton>
@@ -571,6 +582,7 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                         src={tone.images?.[0]}
                         alt={tone.title}
                         gear={tone.gear}
+                        local={tone.local}
                         boxSize={IMAGE_SIZE}
                       />
                     </div>
@@ -639,21 +651,29 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                             {gearLabel(tone.gear)}
                           </span>
                         )}
-                        {formatBadge && <FormatBadge label={formatBadge} />}
+                        {formatBadge && <FormatBadge label={formatBadge} a2={isNam} />}
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        gap: '24px',
-                      }}
-                    >
-                      <CountStat icon={<Download size={16} />} value={tone.downloads_count ?? 0} />
-                      <CountStat icon={<FolderClosed size={16} />} value={tone.models_count ?? 0} />
-                    </div>
+                    {!isLocal && (
+                      <div
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: '24px',
+                        }}
+                      >
+                        <CountStat
+                          icon={<Download size={16} />}
+                          value={tone.downloads_count ?? 0}
+                        />
+                        <CountStat
+                          icon={<FolderClosed size={16} />}
+                          value={tone.models_count ?? 0}
+                        />
+                      </div>
+                    )}
 
                     {tone.user && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -680,22 +700,28 @@ export const ChainBlock: React.FC<ChainBlockProps> = ({
                   </div>
                 </div>
 
-                {/* Switching models re-downloads through native with a Bearer
-                  token, so the picker is inert while signed out. The wrapper
-                  carries the cursor + hint, as the select itself is
-                  pointer-events: none when disabled. */}
+                {/* Switching catalog models re-downloads through native with
+                  a Bearer token, so the picker is inert while signed out.
+                  The wrapper carries the cursor + hint, as the select itself
+                  is pointer-events: none when disabled. Local switches read
+                  the stash: no auth, and the picker always shows (the
+                  dropped file names are the block's provenance). */}
                 <div
-                  {...(!actions.authenticated ? helpProps(HELP.modelSelectSignedOut) : {})}
-                  style={{ cursor: actions.authenticated ? 'default' : 'not-allowed' }}
+                  {...(!isLocal && !actions.authenticated
+                    ? helpProps(HELP.modelSelectSignedOut)
+                    : {})}
+                  style={{
+                    cursor: isLocal || actions.authenticated ? 'default' : 'not-allowed',
+                  }}
                 >
                   <ModelSelect
                     options={modelOptions.map((m) => ({ id: String(m.id), name: m.name }))}
                     value={String(block.activeModelId)}
                     onChange={handleModelSelect}
                     height={36}
-                    disabled={!actions.authenticated}
+                    disabled={!isLocal && !actions.authenticated}
                     loading={modelsLoading}
-                    totalCount={modelsTotal}
+                    totalCount={isLocal ? tone.models.length : modelsTotal}
                   />
                 </div>
               </div>

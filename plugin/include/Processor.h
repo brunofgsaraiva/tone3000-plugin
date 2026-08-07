@@ -80,6 +80,21 @@ public:
   // stale (undone away mid-flow), the active lane's first insert is used.
   std::string loadTone(const juce::String& toneJsonString,
                        const std::string& targetInsertId = {});
+  // Load dropped local files (`files` = [{ name, data }], base64 bytes; one
+  // entry for a single file, many for a folder) as one tone block at an
+  // insert slot, one model per file. Each file is validated (.nam must be
+  // A2, .wav must be real audio) and stashed as a content-addressed copy
+  // whose path becomes the model's model_url; then the tone routes through
+  // loadTone, so downstream behavior (background load, cache, undo,
+  // duplication, persistence) is identical to catalog tones. Unlike catalog
+  // tones the full model list stays in the stored tone JSON (there is no
+  // API catalog to page the others back in from). Returns { blockId } on
+  // success or { error } with a user-facing message.
+  juce::var loadLocalTone(const juce::String& title, const juce::var& files,
+                          const std::string& targetInsertId = {});
+  // Age out local-model stash files unused for a week (runs once per
+  // process, off-thread). Called from the constructor.
+  static void cleanLocalModelStash();
   // Replace the tone of an existing block in place. Keeps the block's chain
   // position and user params (enabled/gains/mix); the new tone's first model
   // is queued for background loading.
@@ -330,6 +345,10 @@ private:
   
   // Tone loading helpers
   std::vector<uint8_t> fetchModelFromUrl(const juce::String& modelUrl);
+  // Cache-hit loads bypass fetchModelFromUrl, so this keeps the stash
+  // honest for local models: recreates a missing stash copy from the cached
+  // bytes and re-stamps an existing one's mtime (the GC's liveness signal).
+  void refreshLocalStashCopy(const juce::String& modelUrl, const std::vector<uint8_t>& bytes);
 
   /** Largest frame count the chain stage can see per boundary callback at the
       base rate: the host max block size converted to 48 kHz frames (and never

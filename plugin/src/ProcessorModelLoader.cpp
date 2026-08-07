@@ -1,7 +1,10 @@
 #include "Processor.h"
 #include "json.hpp"
+#include "NAM/wavenet/a2_fast.h"
+#include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 
@@ -67,6 +70,126 @@ bool namConfigIsPhaseSafe(const nlohmann::json& modelJson) {
   return false;  // LSTM and anything unknown
 }
 
+// Gate for drop-loaded local NAM files: the catalog only serves
+// architecture-2 models (the runtime is tuned around them: 48 kHz training
+// rate, the slimmable tiers, the fast path), so local files must be A2 too.
+// Same container shape as namConfigIsPhaseSafe: a bare A2 WaveNet, or a
+// SlimmableContainer whose every submodel is one.
+bool namConfigIsA2(const nlohmann::json& modelJson) {
+  const std::string architecture = modelJson.value("architecture", "");
+  if (architecture == "WaveNet") {
+    int channels = 0;
+    return modelJson.contains("config") &&
+           nam::wavenet::a2_fast::is_a2_shape(modelJson["config"], &channels);
+  }
+  if (architecture == "SlimmableContainer") {
+    if (!modelJson.contains("config") || !modelJson["config"].contains("submodels"))
+      return false;
+    const auto& submodels = modelJson["config"]["submodels"];
+    if (!submodels.is_array() || submodels.empty())
+      return false;
+    for (const auto& entry : submodels) {
+      if (!entry.contains("model") || !namConfigIsA2(entry["model"]))
+        return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+// Stash folder for drop-loaded local models. The block's toneJson persists
+// the stash path as its model_url, so a cache-lost reload (undo after
+// remove, undo across a tone swap) re-reads this copy even after the user's
+// original file moved. Content-addressed names dedupe re-drops of the same
+// file; stale entries age out (see cleanLocalModelStash). Same app-data
+// root as PresetManager.
+juce::File localModelsDir() {
+  juce::File base = juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory);
+#if JUCE_MAC
+  base = base.getChildFile("Application Support");
+#endif
+  return base.getChildFile("TONE3000").getChildFile("LocalModels");
+}
+
+// FNV-1a over the file bytes: stable across sessions and platforms without
+// pulling in juce_cryptography. The size suffix in the stash name backs up
+// the (already negligible) collision odds.
+juce::uint64 fnv1a64(const void* data, size_t size) {
+  const auto* bytes = static_cast<const uint8_t*>(data);
+  juce::uint64 hash = 1469598103934665603ULL;
+  for (size_t i = 0; i < size; ++i) {
+    hash ^= bytes[i];
+    hash *= 1099511628211ULL;
+  }
+  return hash;
+}
+
+// One dropped file: validate the bytes and stash a content-addressed copy.
+// Validation happens here, at drop time, instead of letting a bad file
+// reach the background loader: its failure surfaces as a retry badge, which
+// is the wrong affordance for a file that can never load. Returns the model
+// object { id, name, model_url } for the synthetic tone, or void with
+// `error` set to a user-facing message.
+juce::var stashLocalFile(const juce::String& filename, const juce::String& base64Data,
+                         juce::String& error) {
+  auto fail = [&](const juce::String& message) {
+    juce::Logger::writeToLog("[LocalLoad] " + filename + ": " + message);
+    error = message;
+    return juce::var();
+  };
+
+  juce::MemoryOutputStream decoded;
+  if (!juce::Base64::convertFromBase64(decoded, base64Data) || decoded.getDataSize() == 0)
+    return fail("Couldn't read the dropped file");
+
+  const juce::String extension = filename.fromLastOccurrenceOf(".", false, false).toLowerCase();
+  const bool isNam = extension == "nam";
+  if (!isNam && extension != "wav")
+    return fail("Only .nam and .wav files are supported");
+
+  if (isNam) {
+    try {
+      const auto* bytes = static_cast<const char*>(decoded.getData());
+      const nlohmann::json config = nlohmann::json::parse(bytes, bytes + decoded.getDataSize());
+      if (!namConfigIsA2(config))
+        return fail("Only A2 NAM files are supported");
+    } catch (const std::exception&) {
+      return fail("Not a valid NAM file");
+    }
+  } else {
+    juce::AudioFormatManager formatManager;
+    formatManager.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader(formatManager.createReaderFor(
+        std::make_unique<juce::MemoryInputStream>(decoded.getData(), decoded.getDataSize(),
+                                                  false)));
+    if (reader == nullptr || reader->lengthInSamples <= 0)
+      return fail("Not a valid WAV file");
+  }
+
+  const juce::uint64 hash = fnv1a64(decoded.getData(), decoded.getDataSize());
+  const juce::File stash = localModelsDir().getChildFile(
+      juce::String::toHexString(static_cast<juce::int64>(hash)) + "-" +
+      juce::String(static_cast<juce::int64>(decoded.getDataSize())) + "." + extension);
+  if (!stash.existsAsFile()) {
+    stash.getParentDirectory().createDirectory();
+    if (!stash.replaceWithData(decoded.getData(), decoded.getDataSize()))
+      return fail("Couldn't store the dropped file");
+  } else {
+    // Re-drop of known bytes: refresh the GC liveness stamp (see
+    // cleanLocalModelStash).
+    stash.setLastModificationTime(juce::Time::getCurrentTime());
+  }
+
+  // Positive, content-stable model id. It's only ever compared within its
+  // own block (cache key, activeModelId), so collisions across different
+  // files would be harmless anyway.
+  juce::DynamicObject::Ptr model = new juce::DynamicObject();
+  model->setProperty("id", static_cast<int>(hash % 0x7ffffffe) + 1);
+  model->setProperty("name", filename.upToLastOccurrenceOf(".", false, false));
+  model->setProperty("model_url", juce::URL(stash).toString(false));
+  return juce::var(model.get());
+}
+
 }  // namespace
 
 float TONE3000Processor::computeIrNormalizationGain(const juce::File& irFile,
@@ -127,8 +250,130 @@ float TONE3000Processor::computeIrNormalizationGain(const juce::File& irFile,
   return static_cast<float>(linearClamped);
 }
 
+juce::var TONE3000Processor::loadLocalTone(const juce::String& title, const juce::var& files,
+                                           const std::string& targetInsertId) {
+  auto fail = [&title](const juce::String& message) {
+    juce::Logger::writeToLog("[LocalLoad] " + title + ": " + message);
+    juce::DynamicObject::Ptr err = new juce::DynamicObject();
+    err->setProperty("error", message);
+    return juce::var(err.get());
+  };
+
+  const auto* fileArray = files.getArray();
+  if (fileArray == nullptr || fileArray->isEmpty())
+    return fail("Nothing to load");
+
+  // A folder with some bad files still loads the good ones; only when
+  // nothing survives does the first file's error surface (which for a
+  // single-file drop is exactly that file's error).
+  juce::Array<juce::var> models;
+  juce::String firstError;
+  for (const auto& file : *fileArray) {
+    juce::String error;
+    const juce::var model = stashLocalFile(file["name"].toString(), file["data"].toString(), error);
+    if (!model.isObject()) {
+      if (firstError.isEmpty())
+        firstError = error;
+      continue;
+    }
+
+    // Identical bytes under two names would collide on the content-derived
+    // id (cache key, picker selection); the first name wins.
+    const int modelId = model["id"];
+    const bool duplicate =
+        std::any_of(models.begin(), models.end(),
+                    [modelId](const juce::var& m) { return static_cast<int>(m["id"]) == modelId; });
+    if (!duplicate)
+      models.add(model);
+  }
+
+  if (models.isEmpty())
+    return fail(firstError.isNotEmpty() ? firstError : "No loadable files");
+
+  // Every model in a local tone shares one format (the UI keeps only the
+  // folder's majority extension); the first stash URL names it.
+  const bool isNam = models.getReference(0)["model_url"].toString().endsWithIgnoreCase(".nam");
+
+  juce::DynamicObject::Ptr tone = new juce::DynamicObject();
+  tone->setProperty("id", 0);
+  tone->setProperty("local", true);
+  tone->setProperty("title", title);
+  tone->setProperty("format", isNam ? "nam" : "ir");
+  tone->setProperty("models", models);
+
+  const std::string blockId =
+      loadTone(juce::JSON::toString(juce::var(tone.get())), targetInsertId);
+  if (blockId.empty())
+    return fail("Couldn't add the block");
+
+  juce::Logger::writeToLog("[LocalLoad] Loaded '" + title + "' into block " +
+                           juce::String(blockId) + " (" + juce::String(models.size()) + " of " +
+                           juce::String(fileArray->size()) + " file(s))");
+  juce::DynamicObject::Ptr ok = new juce::DynamicObject();
+  ok->setProperty("blockId", juce::String(blockId));
+  return juce::var(ok.get());
+}
+
+void TONE3000Processor::cleanLocalModelStash() {
+  // The stash only has to outlive whatever references it *by path*: running
+  // sessions' undo histories and not-yet-reloaded chains. Presets and DAW
+  // state embed the bytes and re-heal the stash on load (see
+  // refreshLocalStashCopy), and every use re-stamps the file's mtime, so a
+  // week of no use means nothing alive points at it. Runs once per process,
+  // off the constructor's thread (it does directory IO).
+  static std::once_flag once;
+  std::call_once(once, [] {
+    juce::Thread::launch([] {
+      const juce::Time cutoff = juce::Time::getCurrentTime() - juce::RelativeTime::days(7);
+      for (const auto& file : localModelsDir().findChildFiles(juce::File::findFiles, false)) {
+        if (file.getLastModificationTime() < cutoff && file.deleteFile())
+          juce::Logger::writeToLog("[LocalLoad] Stash GC removed " + file.getFileName());
+      }
+    });
+  });
+}
+
+void TONE3000Processor::refreshLocalStashCopy(const juce::String& modelUrl,
+                                              const std::vector<uint8_t>& bytes) {
+  const juce::URL url(modelUrl);
+  if (!url.isLocalFile())
+    return;
+  const juce::File stash = url.getLocalFile();
+  if (!stash.isAChildOf(localModelsDir()))
+    return;
+
+  if (stash.existsAsFile()) {
+    // In use, so keep the GC away (mtime is its liveness signal).
+    stash.setLastModificationTime(juce::Time::getCurrentTime());
+    return;
+  }
+
+  // The bytes came from an embedded cache but the stash copy is gone (GC'd,
+  // or a preset from another machine): put it back so paths that need the
+  // file (undo of a remove, retry) keep working.
+  stash.getParentDirectory().createDirectory();
+  if (stash.replaceWithData(bytes.data(), bytes.size()))
+    juce::Logger::writeToLog("[LocalLoad] Restored stash copy " + stash.getFileName());
+}
+
 std::vector<uint8_t> TONE3000Processor::fetchModelFromUrl(const juce::String& modelUrl) {
   juce::URL url(modelUrl);
+
+  // Local-file models (drag-and-drop loads) resolve to their stash copy:
+  // no network, no auth. See loadLocalTone.
+  if (url.isLocalFile()) {
+    juce::MemoryBlock data;
+    if (!url.getLocalFile().loadFileAsData(data) || data.getSize() == 0) {
+      juce::Logger::writeToLog("[ModelLoader] Local model file missing or unreadable: " +
+                               modelUrl);
+      return {};
+    }
+    // In use, so keep the GC away (mtime is its liveness signal, see
+    // cleanLocalModelStash).
+    url.getLocalFile().setLastModificationTime(juce::Time::getCurrentTime());
+    const auto* bytes = static_cast<const uint8_t*>(data.getData());
+    return std::vector<uint8_t>(bytes, bytes + data.getSize());
+  }
 
   // The TONE3000 API requires a Bearer token on `model_url` requests;
   // attach the latest token the UI handed us, if any. Anonymous fetches still

@@ -20,6 +20,7 @@ target_sources(DspTests PRIVATE
     src/branch_tests.cpp
     src/dsp_tests.cpp
     src/duplicate_tests.cpp
+    src/local_load_tests.cpp
     src/midi_map_tests.cpp
     src/multicore_tests.cpp
     src/preset_tests.cpp
@@ -75,6 +76,9 @@ target_compile_definitions(DspTests PRIVATE
     JUCE_MODAL_LOOPS_PERMITTED=1
     # Absolute path to the test assets, so the binary runs from anywhere.
     T3K_TEST_FILES_DIR="${CMAKE_CURRENT_SOURCE_DIR}/files"
+    # Exposes is_a2_shape, which ProcessorModelLoader.cpp uses to gate
+    # drop-loaded local NAM files (same as plugin/CMakeLists.txt).
+    NAM_ENABLE_A2_FAST
 )
 
 target_link_libraries(DspTests

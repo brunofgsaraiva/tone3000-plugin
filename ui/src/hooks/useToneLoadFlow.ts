@@ -12,6 +12,58 @@ type ChainStateActions = ReturnType<typeof useChainState>['actions'];
 const SWAP_STORAGE_KEY = 't3k.pendingSwapBlockId';
 const INSERT_TARGET_STORAGE_KEY = 't3k.pendingInsertBlockId';
 
+/** Sanity cap for dropped files; real .nam files and IRs are a few MB, and
+    the bytes ride the native bridge as base64 strings. */
+const MAX_LOCAL_FILE_BYTES = 50 * 1024 * 1024;
+
+/** Cap on models loaded from one dropped folder (matches the catalog's
+    per-tone model limit). */
+const MAX_FOLDER_MODELS = 300;
+
+/** FileReader emits base64 directly (as a data URL), skipping a manual
+    ArrayBuffer-to-string pass over multi-MB files. */
+const readFileBase64 = (file: File) =>
+  new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(',', 2)[1] ?? '');
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+
+const extensionOf = (name: string) => name.slice(name.lastIndexOf('.') + 1).toLowerCase();
+
+const stripExtension = (name: string) => {
+  const dot = name.lastIndexOf('.');
+  return dot > 0 ? name.slice(0, dot) : name;
+};
+
+/** All files under a dropped directory, subfolders included. readEntries
+    hands out batches (Chromium caps them at 100), so each reader drains in
+    a loop. */
+const readDirectoryFiles = async (root: FileSystemDirectoryEntry): Promise<File[]> => {
+  const files: File[] = [];
+  const pending: FileSystemDirectoryEntry[] = [root];
+  while (pending.length > 0) {
+    const reader = pending.pop()!.createReader();
+    for (;;) {
+      const entries = await new Promise<FileSystemEntry[]>((resolve, reject) =>
+        reader.readEntries(resolve, reject)
+      );
+      if (entries.length === 0) break;
+      for (const entry of entries) {
+        if (entry.isDirectory) pending.push(entry as FileSystemDirectoryEntry);
+        else
+          files.push(
+            await new Promise<File>((resolve, reject) =>
+              (entry as FileSystemFileEntry).file(resolve, reject)
+            )
+          );
+      }
+    }
+  }
+  return files;
+};
+
 interface UseToneLoadFlowOptions {
   actions: ChainStateActions;
   stereoEnabled: boolean;
@@ -92,11 +144,69 @@ export function useToneLoadFlow({
     [requireInternet, setShowToneBrowser]
   );
 
+  // Drop a local .nam/.wav (or a folder of them) on an insert slot: no
+  // browser, no auth, the file bytes ride the bridge and native
+  // validates/loads them as one block. Resolves to a user-facing error
+  // message (the tile toasts it), or null on success.
+  const handleDropFile = useCallback(
+    async (insertBlockId: string, item: DataTransferItem): Promise<string | null> => {
+      // Synchronous reads: the DataTransferItem goes inert once the drop
+      // handler yields (the entry/file objects stay usable).
+      const entry = item.webkitGetAsEntry();
+      const singleFile = entry?.isDirectory ? null : item.getAsFile();
+
+      try {
+        // A folder loads as one multi-model tone: title from the folder,
+        // one model per file of its majority extension (.nam vs .wav, which
+        // also decides NAM vs IR), everything else ignored.
+        if (entry?.isDirectory) {
+          const all = await readDirectoryFiles(entry as FileSystemDirectoryEntry);
+          const nams = all.filter((f) => extensionOf(f.name) === 'nam');
+          const wavs = all.filter((f) => extensionOf(f.name) === 'wav');
+          const files = nams.length >= wavs.length ? nams : wavs;
+          if (files.length === 0) return 'No .nam or .wav files in the folder';
+          if (files.length > MAX_FOLDER_MODELS)
+            return `Folder has too many files (max ${MAX_FOLDER_MODELS})`;
+          if (files.some((f) => f.size > MAX_LOCAL_FILE_BYTES)) return 'A file is too large';
+
+          // Directory read order is unspecified; natural name order makes
+          // the model list stable ("amp 2" before "amp 10").
+          files.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+          const payload = await Promise.all(
+            files.map(async (f) => ({ name: f.name, data: await readFileBase64(f) }))
+          );
+          return await actions.loadLocalTone(entry.name, payload, insertBlockId);
+        }
+
+        if (!singleFile) return "Couldn't read the dropped file";
+        const extension = extensionOf(singleFile.name);
+        if (extension !== 'nam' && extension !== 'wav')
+          return 'Only .nam and .wav files are supported';
+        if (singleFile.size > MAX_LOCAL_FILE_BYTES) return 'File is too large';
+        return await actions.loadLocalTone(
+          stripExtension(singleFile.name),
+          [{ name: singleFile.name, data: await readFileBase64(singleFile) }],
+          insertBlockId
+        );
+      } catch (error) {
+        console.error('Local file drop failed:', error);
+        return "Couldn't read the dropped file";
+      }
+    },
+    [actions]
+  );
+
   // Abandon any pending targets (browser closed without picking, logout).
   const clearPendingTargets = useCallback(() => {
     sessionStorage.removeItem(SWAP_STORAGE_KEY);
     sessionStorage.removeItem(INSERT_TARGET_STORAGE_KEY);
   }, []);
 
-  return { handleToneSelected, handleAddModel, handleSwapBlock, clearPendingTargets };
+  return {
+    handleToneSelected,
+    handleAddModel,
+    handleSwapBlock,
+    handleDropFile,
+    clearPendingTargets,
+  };
 }

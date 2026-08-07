@@ -201,6 +201,12 @@ target_include_directories(${PROJECT_NAME}
         ${CMAKE_CURRENT_SOURCE_DIR}/AudioDSPTools/dsp/ResamplingContainer/Dependencies
 )
 
+# The define also gates the is_a2_shape declaration, which the plugin uses to
+# restrict drop-loaded local NAM files to A2 (see ProcessorModelLoader.cpp).
+# Defined here too because NAM is linked as a whole-archive flag on
+# macOS/Linux, which doesn't propagate the NAM target's definitions.
+target_compile_definitions(${PROJECT_NAME} PRIVATE NAM_ENABLE_A2_FAST)
+
 # JUCE modules used
 target_link_libraries(${PROJECT_NAME}
     PRIVATE

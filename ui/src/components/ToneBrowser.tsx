@@ -363,7 +363,12 @@ const ToneCard: React.FC<{
         >
           {gearLabel(tone.gear)}
         </span>
-        <FormatBadge label={formatLabel(tone.format)} />
+        {/* The A2 mark only where the plugin can actually load the tone;
+            NAM cards without A2 models render disabled and unmarked. */}
+        <FormatBadge
+          label={formatLabel(tone.format)}
+          a2={tone.format?.toLowerCase() === 'nam' && !isToneUnavailable(tone)}
+        />
       </div>
 
       <div

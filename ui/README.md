@@ -45,7 +45,10 @@ to the authorize URL, TONE3000 redirects back to `index.html?code=...`, React
 remounts and exchanges the code, then hands the access token to native via
 `setAccessToken` so C++ downloads can send `Authorization: Bearer` headers.
 Session logic lives in `src/hooks/useToneSession.ts`, and the add/swap tone
-flows in `src/hooks/useToneLoadFlow.ts`.
+flows in `src/hooks/useToneLoadFlow.ts`. The same hook handles local files
+dropped on an insert slot (`.nam` / IR `.wav`, or a folder of them), which
+load natively with no browser or auth; see
+[`plugin/docs/local-models.md`](../plugin/docs/local-models.md).
 
 ## Layout
 

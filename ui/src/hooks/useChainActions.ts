@@ -15,6 +15,10 @@ import type { Model } from '../types/tone';
 export interface ChainActions {
   /** Launch the Select flow, adding into the clicked insert slot. */
   addModel: (side: ChainSide, insertBlockId: string) => void;
+  /** Load a drop on an insert slot: a .nam / .wav file (NAM must be A2), or
+      a folder of them (one block, one model per file). Resolves to a
+      user-facing error message, or null when the block was added. */
+  loadLocalFile: (insertBlockId: string, item: DataTransferItem) => Promise<string | null>;
   removeBlock: (blockId: string) => void;
   /** Launch the Select flow to replace this block's tone in place. */
   swapBlock: (blockId: string) => void;
@@ -36,8 +40,13 @@ export interface ChainActions {
   /** Revert to two fully independent chains. */
   clearBranch: () => void;
   /** Native only stores the active model, so the switch always carries the
-      full model object (paged in from the API by the picker). */
-  switchModel: (blockId: string, modelId: number, model: Model) => Promise<void>;
+      model object (paged in from the API by the picker, or a local tone's
+      own model list); id/name/model_url is all native needs. */
+  switchModel: (
+    blockId: string,
+    modelId: number,
+    model: Pick<Model, 'id' | 'name' | 'model_url'>
+  ) => Promise<void>;
   /** Retry a failed model download (`block.loadFailed`); re-queues the
       block's active model through the native background loader. */
   retryLoad: (blockId: string) => void;

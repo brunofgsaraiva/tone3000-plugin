@@ -123,10 +123,14 @@ ParsedTone parseToneForLoading(const juce::String& toneJsonString) {
   out.type = (format == "nam") ? ChainBlockType::NAM : ChainBlockType::IR;
 
   // Store only the model being loaded; native persists just the active
-  // model; the catalog stays on the API.
-  juce::Array<juce::var> prunedModels;
-  prunedModels.add(modelsVar.getArray()->getReference(0));
-  toneObj->setProperty("models", prunedModels);
+  // model; the catalog stays on the API. Local tones are the exception:
+  // their model list *is* the dropped files (no API to page the others back
+  // in from), so it stays whole.
+  if (!static_cast<bool>(toneObj->getProperty("local"))) {
+    juce::Array<juce::var> prunedModels;
+    prunedModels.add(modelsVar.getArray()->getReference(0));
+    toneObj->setProperty("models", prunedModels);
+  }
 
   out.toneVar = toneVar;
   out.toneJson = juce::JSON::toString(toneVar);
@@ -150,6 +154,13 @@ juce::var TONE3000Processor::makeToneSummary(const juce::var& toneVar) {
     format = tone->getProperty("platform");
   out->setProperty("format", format);
   out->setProperty("gear", tone->getProperty("gear"));
+
+  // Drop-loaded local file(s) (see loadLocalTone): no catalog metadata
+  // exists, so the UI trims its catalog chrome (share, counts) and feeds the
+  // model picker from the summary's model list instead of the API.
+  const bool local = static_cast<bool>(tone->getProperty("local"));
+  if (local)
+    out->setProperty("local", true);
 
   // Catalog totals for the model picker's "n/N" (only the active model is
   // stored, so the UI can't count the catalog itself). NAM blocks use the
@@ -179,8 +190,11 @@ juce::var TONE3000Processor::makeToneSummary(const juce::var& toneVar) {
     out->setProperty("user", juce::var(u.get()));
   }
 
-  // Only the active model is stored natively (see parseToneForLoading /
-  // switchModel); the picker pages the full catalog from the API client-side.
+  // Catalog tones store only the active model (see parseToneForLoading /
+  // switchModel); the picker pages the full catalog from the API
+  // client-side. Local tones store all their models, and the switch call
+  // needs each one's stash URL (there is no catalog to fetch it from), so
+  // for them model_url ships in the summary too.
   juce::Array<juce::var> models;
   if (auto* modelsArr = tone->getProperty("models").getArray()) {
     for (const auto& m : *modelsArr) {
@@ -188,6 +202,8 @@ juce::var TONE3000Processor::makeToneSummary(const juce::var& toneVar) {
         juce::DynamicObject::Ptr slim = new juce::DynamicObject();
         slim->setProperty("id", model->getProperty("id"));
         slim->setProperty("name", model->getProperty("name"));
+        if (local)
+          slim->setProperty("model_url", model->getProperty("model_url"));
         models.add(juce::var(slim.get()));
       }
     }
@@ -414,12 +430,16 @@ bool TONE3000Processor::switchModel(const std::string& blockId, int modelId,
 
   pushChainHistory();
 
-  // The new model becomes the tone's sole stored model.
-  juce::Array<juce::var> models;
-  models.add(modelData);
-  block->toneVar.getDynamicObject()->setProperty("models", models);
-  block->toneJson = juce::JSON::toString(block->toneVar);
-  block->toneSummary = makeToneSummary(block->toneVar);
+  // The new model becomes the tone's sole stored model. Local tones keep
+  // their full model list instead (the picked model is already in it; see
+  // parseToneForLoading), so only the active id moves.
+  if (!static_cast<bool>(block->toneVar["local"])) {
+    juce::Array<juce::var> models;
+    models.add(modelData);
+    block->toneVar.getDynamicObject()->setProperty("models", models);
+    block->toneJson = juce::JSON::toString(block->toneVar);
+    block->toneSummary = makeToneSummary(block->toneVar);
+  }
 
   // The previous engine keeps processing (loaded stays true) while the new
   // model downloads/prepares; the swap itself is spliced in with a fade.
@@ -745,6 +765,10 @@ void TONE3000Processor::switchModelInBackground(const std::string& blockId, int 
       markBlockLoadFailed(blockId);
       return;
     }
+  } else {
+    // Local-model stash upkeep for cache-hit loads (fetches do their own in
+    // fetchModelFromUrl); no-op for catalog URLs.
+    refreshLocalStashCopy(modelUrl, modelData);
   }
 
   const juce::String filename =
