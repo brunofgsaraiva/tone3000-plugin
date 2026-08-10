@@ -257,11 +257,94 @@ export const KnobControl: React.FC<KnobControlProps> = ({
   }, [dragging]);
 
   const showReadout = !editing && readoutVisible;
-  // Fixed-footprint label slot: readout/input can be wider than the label
-  // but must never shift surrounding layout, so the slot is sized once and
-  // its content overflows symmetrically. With labelExtra the row grows past
-  // the knob width (label + chip), so drop the width lock.
+  // Fixed-footprint label slot: with labelExtra, lock to the idle label
+  // width (hidden sizer) so the chip keeps its gap and stays put through
+  // readout/edit. Without labelExtra, lock to the knob `size`.
   const slotHeight = Math.round(LABEL_SIZE * 1.2);
+
+  const labelText = (
+    <span
+      style={{
+        fontSize: LABEL_SIZE,
+        fontWeight: 400,
+        textAlign: 'center',
+        // Idle labels are muted by default; pan-rail labels pass
+        // labelBright to read as section titles. Readout is always white.
+        color: showReadout || labelBright ? WHITE : GRAY,
+        letterSpacing: showReadout ? 'normal' : '1px',
+        whiteSpace: 'nowrap',
+        fontVariantNumeric: 'tabular-nums',
+      }}
+    >
+      {showReadout ? scale.format(value) : label}
+    </span>
+  );
+
+  const editInput = (
+    <input
+      ref={inputRef}
+      value={editText ?? ''}
+      onChange={(e) => setEditText(e.target.value)}
+      onBlur={commitEdit}
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Enter') commitEdit();
+        else if (e.key === 'Escape') setEditText(null);
+      }}
+      inputMode="decimal"
+      style={{
+        width: '100%',
+        height: slotHeight + 4,
+        boxSizing: 'border-box',
+        background: SURFACE_RAISED,
+        border: '1px solid rgba(235, 235, 245, 0.3)',
+        borderRadius: '4px',
+        color: '#ffffff',
+        fontSize: 11,
+        textAlign: 'center',
+        outline: 'none',
+        padding: 0,
+      }}
+    />
+  );
+
+  // Idle-label sizer: width matches normal "Pan L" / etc.; visible content
+  // overlays it so readout/edit never move the solo chip or eat the gap.
+  const labelExtraSlot = (
+    <span
+      style={{
+        position: 'relative',
+        display: 'inline-block',
+        flexShrink: 0,
+        height: editing ? slotHeight + 4 : slotHeight,
+      }}
+    >
+      <span
+        aria-hidden
+        style={{
+          visibility: 'hidden',
+          display: 'block',
+          fontSize: LABEL_SIZE,
+          fontWeight: 400,
+          letterSpacing: '1px',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+      </span>
+      <span
+        style={{
+          position: 'absolute',
+          inset: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        {editing ? editInput : labelText}
+      </span>
+    </span>
+  );
 
   return (
     <div
@@ -311,49 +394,12 @@ export const KnobControl: React.FC<KnobControlProps> = ({
           overflow: 'visible',
         }}
       >
-        {editing ? (
-          <input
-            ref={inputRef}
-            value={editText}
-            onChange={(e) => setEditText(e.target.value)}
-            onBlur={commitEdit}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') commitEdit();
-              else if (e.key === 'Escape') setEditText(null);
-            }}
-            inputMode="decimal"
-            style={{
-              width: Math.max(size, 34),
-              height: slotHeight + 4,
-              flexShrink: 0,
-              boxSizing: 'border-box',
-              background: SURFACE_RAISED,
-              border: '1px solid rgba(235, 235, 245, 0.3)',
-              borderRadius: '4px',
-              color: '#ffffff',
-              fontSize: 11,
-              textAlign: 'center',
-              outline: 'none',
-              padding: 0,
-            }}
-          />
+        {labelExtra ? (
+          labelExtraSlot
+        ) : editing ? (
+          <span style={{ width: size, flexShrink: 0, display: 'inline-block' }}>{editInput}</span>
         ) : (
-          <span
-            style={{
-              fontSize: LABEL_SIZE,
-              fontWeight: 400,
-              textAlign: 'center',
-              // Idle labels are muted by default; pan-rail labels pass
-              // labelBright to read as section titles. Readout is always white.
-              color: showReadout || labelBright ? WHITE : GRAY,
-              letterSpacing: showReadout ? 'normal' : '1px',
-              whiteSpace: 'nowrap',
-              fontVariantNumeric: 'tabular-nums',
-            }}
-          >
-            {showReadout ? scale.format(value) : label}
-          </span>
+          labelText
         )}
         {labelExtra}
       </div>

@@ -117,15 +117,16 @@ stdout/stderr reach your terminal (on macOS that is
 `TONE3000.app/Contents/MacOS/TONE3000`).
 
 **In a DAW:** copy the built plugin to your user plugin folder and rescan.
-`./script/install-plugin.sh VST3` (or `AU`) does the copy on macOS and Linux;
-pass `Debug` as the second argument for the Debug build. Artefacts land in
-`build/plugin/TONE3000_artefacts/<config>/<format>/`.
+`./script/install-plugin.sh VST3` (or `AU` / `AAX`) does the copy on macOS
+and Linux; pass `Debug` as the second argument for the Debug build. Artefacts
+land in `build/plugin/TONE3000_artefacts/<config>/<format>/`.
 
-| OS      | Format | Install to                              |
-| ------- | ------ | --------------------------------------- |
-| macOS   | VST3   | `~/Library/Audio/Plug-Ins/VST3/`        |
-| macOS   | AU     | `~/Library/Audio/Plug-Ins/Components/`  |
-| macOS   | CLAP   | `~/Library/Audio/Plug-Ins/CLAP/`        |
+| OS      | Format | Install to                                              |
+| ------- | ------ | ------------------------------------------------------- |
+| macOS   | VST3   | `~/Library/Audio/Plug-Ins/VST3/`                        |
+| macOS   | AU     | `~/Library/Audio/Plug-Ins/Components/`                  |
+| macOS   | AAX    | `/Library/Application Support/Avid/Audio/Plug-Ins/` |
+| macOS   | CLAP   | `~/Library/Audio/Plug-Ins/CLAP/`                        |
 | Windows | VST3   | `C:\Program Files\Common Files\VST3\`   |
 | Windows | CLAP   | `C:\Program Files\Common Files\CLAP\`   |
 | Linux   | VST3   | `~/.vst3/`                              |
