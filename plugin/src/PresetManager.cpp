@@ -21,10 +21,32 @@ juce::File presetsRootDir() {
 
 }  // namespace
 
-PresetManager::PresetManager() : PresetManager(presetsRootDir()) {}
+PresetManager::PresetManager() : PresetManager(presetsRootDir(), defaultSystemFactoryDir()) {}
 
-PresetManager::PresetManager(const juce::File& baseDir)
-    : userDir(baseDir), factoryDir(baseDir.getChildFile("Factory")) {}
+PresetManager::PresetManager(const juce::File& baseDir, const juce::File& systemFactory)
+    : userDir(baseDir),
+      factoryDir(baseDir.getChildFile("Factory")),
+      systemFactoryDir(systemFactory) {}
+
+juce::File PresetManager::defaultSystemFactoryDir() {
+  // Shared all-users location the installers write to. A missing dir just
+  // means no shipped presets; scans treat it as empty.
+#if JUCE_MAC
+  return juce::File("/Library/Application Support/TONE3000/Presets/Factory");
+#elif JUCE_WINDOWS
+  // ProgramData; matches the Inno Setup {commonappdata} destination.
+  return juce::File::getSpecialLocation(juce::File::commonApplicationDataDirectory)
+      .getChildFile("TONE3000")
+      .getChildFile("Presets")
+      .getChildFile("Factory");
+#elif JUCE_LINUX
+  // The tarball installs per-user (into factoryDir); this path is the hook
+  // for system-wide/distro packaging.
+  return juce::File("/usr/share/TONE3000/Presets/Factory");
+#else
+  return {};
+#endif
+}
 
 juce::ValueTree PresetManager::readPresetFile(const juce::File& file) {
   if (!file.existsAsFile())
@@ -60,15 +82,25 @@ juce::File PresetManager::fileForId(const juce::String& id) const {
   if (id.startsWith(kUserPrefix))
     return userDir.getChildFile(id.fromFirstOccurrenceOf(kUserPrefix, false, false) +
                                 kFileExtension);
-  if (id.startsWith(kFactoryPrefix))
-    return factoryDir.getChildFile(id.fromFirstOccurrenceOf(kFactoryPrefix, false, false) +
-                                   kFileExtension);
+  if (id.startsWith(kFactoryPrefix)) {
+    const juce::String stem =
+        id.fromFirstOccurrenceOf(kFactoryPrefix, false, false) + kFileExtension;
+    // User Factory overrides the installer-shipped copy when both exist.
+    const juce::File local = factoryDir.getChildFile(stem);
+    if (local.existsAsFile())
+      return local;
+    if (systemFactoryDir != juce::File())
+      return systemFactoryDir.getChildFile(stem);
+    return {};
+  }
   return {};
 }
 
 std::vector<PresetManager::Info> PresetManager::list() const {
   auto scan = [](const juce::File& dir, const char* prefix, bool factory) {
     std::vector<Info> out;
+    if (!dir.isDirectory())
+      return out;
     for (const auto& file :
          dir.findChildFiles(juce::File::findFiles, false, "*" + juce::String(kFileExtension))) {
       const juce::ValueTree preset = readPresetFile(file);
@@ -86,7 +118,21 @@ std::vector<PresetManager::Info> PresetManager::list() const {
     return out;
   };
 
-  std::vector<Info> presets = scan(factoryDir, kFactoryPrefix, true);
+  // System Factory first, then user Factory overlaid on top (a local file
+  // with the same stem replaces the shipped one), re-sorted by name so the
+  // merged section reads like a single folder.
+  std::vector<Info> presets = scan(systemFactoryDir, kFactoryPrefix, true);
+  for (const auto& info : scan(factoryDir, kFactoryPrefix, true)) {
+    const auto it = std::find_if(presets.begin(), presets.end(),
+                                 [&info](const Info& existing) { return existing.id == info.id; });
+    if (it != presets.end())
+      *it = info;
+    else
+      presets.push_back(info);
+  }
+  std::sort(presets.begin(), presets.end(), [](const Info& a, const Info& b) {
+    return a.name.compareIgnoreCase(b.name) < 0;
+  });
   std::vector<Info> user = scan(userDir, kUserPrefix, false);
   presets.insert(presets.end(), std::make_move_iterator(user.begin()),
                  std::make_move_iterator(user.end()));

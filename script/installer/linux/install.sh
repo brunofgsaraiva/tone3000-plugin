@@ -13,6 +13,9 @@
 #   BIN_DIR   standalone app dir (default: ~/.local/bin)
 #   DATA_DIR  XDG data dir for the desktop entry + icon
 #             (default: $XDG_DATA_HOME, or ~/.local/share)
+#   CONFIG_DIR  TONE3000 config root; factory presets install under
+#               Presets/Factory (default: $XDG_CONFIG_HOME/TONE3000,
+#               or ~/.config/TONE3000)
 #
 # Runtime dependencies: the UI runs in a system WebKitGTK webview, which JUCE
 # loads dynamically at runtime (it is NOT bundled, unlike WebView2 on Windows).
@@ -26,6 +29,9 @@ LV2_DIR="${LV2_DIR:-$HOME/.lv2}"
 CLAP_DIR="${CLAP_DIR:-$HOME/.clap}"
 BIN_DIR="${BIN_DIR:-$HOME/.local/bin}"
 DATA_DIR="${DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}}"
+# Same root PresetManager uses for user presets on Linux (~/.config/TONE3000).
+CONFIG_DIR="${CONFIG_DIR:-${XDG_CONFIG_HOME:-$HOME/.config}/TONE3000}"
+FACTORY_DIR="$CONFIG_DIR/Presets/Factory"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 
 # Runtime dependency handling
@@ -218,6 +224,14 @@ if [[ "${1:-}" == "--uninstall" ]]; then
   rm -f "$BIN_DIR/TONE3000"
   rm -f "$DATA_DIR/applications/tone3000.desktop"
   rm -f "$DATA_DIR/icons/hicolor/512x512/apps/tone3000.png"
+  # Remove only the factory presets this tarball shipped (matched by stem),
+  # never the user's own saved presets.
+  if compgen -G "${HERE}/factory-presets/*.t3kpreset" > /dev/null; then
+    for f in "${HERE}/factory-presets"/*.t3kpreset; do
+      rm -f "$FACTORY_DIR/$(basename "$f")"
+    done
+    rmdir "$FACTORY_DIR" 2>/dev/null || true
+  fi
   command -v update-desktop-database >/dev/null &&
     update-desktop-database "$DATA_DIR/applications" 2>/dev/null || true
   echo "TONE3000 uninstalled."
@@ -263,6 +277,12 @@ echo "Installing standalone app to $BIN_DIR ..."
 mkdir -p "$BIN_DIR"
 install -m 755 "$HERE/TONE3000" "$BIN_DIR/TONE3000"
 
+if compgen -G "${HERE}/factory-presets/*.t3kpreset" > /dev/null; then
+  echo "Installing factory presets to $FACTORY_DIR ..."
+  mkdir -p "$FACTORY_DIR"
+  cp "${HERE}/factory-presets"/*.t3kpreset "$FACTORY_DIR/"
+fi
+
 # Desktop entry + icon so the standalone shows up in app launchers with the
 # proper name and artwork. Written here (not shipped as a file) because Exec
 # must be the absolute install path: launchers don't resolve ~/.local/bin
@@ -290,6 +310,9 @@ echo "  VST3:       $VST3_DIR/TONE3000.vst3 (rescan plug-ins in your DAW)"
 echo "  LV2:        $LV2_DIR/TONE3000.lv2"
 echo "  CLAP:       $CLAP_DIR/TONE3000.clap"
 echo "  Standalone: $BIN_DIR/TONE3000 (desktop entry: applications menu > TONE3000)"
+if [[ -d "$FACTORY_DIR" ]] && compgen -G "${FACTORY_DIR}/*.t3kpreset" > /dev/null; then
+  echo "  Presets:    $FACTORY_DIR"
+fi
 if ! echo ":$PATH:" | grep -q ":$BIN_DIR:"; then
   echo ""
   echo "Note: $BIN_DIR is not on your PATH; launch the standalone with its full path"

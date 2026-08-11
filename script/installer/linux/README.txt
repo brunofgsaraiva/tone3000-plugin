@@ -8,7 +8,8 @@ Install (recommended)
 This installs the VST3 to ~/.vst3, the LV2 to ~/.lv2, the CLAP to ~/.clap
 and the standalone app to ~/.local/bin (with a desktop entry and icon so it
 shows up in your applications menu), checking for required system libraries
-first and offering to install any that are missing.
+first and offering to install any that are missing. Factory presets land in
+~/.config/TONE3000/Presets/Factory.
 
   ./install.sh --check       check dependencies only, install nothing
   ./install.sh --uninstall   remove a previous install

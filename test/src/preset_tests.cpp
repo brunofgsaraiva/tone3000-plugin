@@ -77,6 +77,45 @@ TEST(PresetManagerTest, RenameAndRemoveApplyToUserPresetsOnly) {
   EXPECT_FALSE(mgr.load(info.id).isValid());
 }
 
+TEST(PresetManagerTest, SystemFactoryPresetsListedAndLocalOverrideWins) {
+  TempPresetDir tmp;
+  TempPresetDir system;  // stands in for the installer-shipped Factory dir
+
+  auto writeFactoryFile = [](const juce::File& file, const juce::String& name) {
+    juce::ValueTree preset(PresetManager::kPresetTag);
+    preset.setProperty("name", name, nullptr);
+    juce::FileOutputStream out(file);
+    ASSERT_TRUE(out.openedOk());
+    out.write("T3KB", 4);
+    preset.writeToStream(out);
+  };
+  writeFactoryFile(system.dir.getChildFile(juce::String("clean") + PresetManager::kFileExtension),
+                   "Shipped Clean");
+  writeFactoryFile(system.dir.getChildFile(juce::String("lead") + PresetManager::kFileExtension),
+                   "Shipped Lead");
+  tmp.dir.getChildFile("Factory").createDirectory();
+  writeFactoryFile(tmp.dir.getChildFile("Factory").getChildFile(
+                       juce::String("clean") + PresetManager::kFileExtension),
+                   "Local Clean");
+
+  // Same stem in both dirs collapses to one entry, with the local file
+  // winning; the untouched shipped preset still lists and loads.
+  PresetManager mgr(tmp.dir, system.dir);
+  const auto presets = mgr.list();
+  ASSERT_EQ(presets.size(), 2u);
+  EXPECT_EQ(presets[0].name, juce::String("Local Clean"));
+  EXPECT_TRUE(presets[0].factory);
+  EXPECT_EQ(presets[1].name, juce::String("Shipped Lead"));
+  EXPECT_EQ(mgr.load("factory:clean").getProperty("name").toString(),
+            juce::String("Local Clean"));
+  EXPECT_EQ(mgr.load("factory:lead").getProperty("name").toString(),
+            juce::String("Shipped Lead"));
+
+  // Shipped presets are as read-only as local factory ones.
+  EXPECT_FALSE(mgr.rename("factory:lead", "Hacked"));
+  EXPECT_FALSE(mgr.remove("factory:lead"));
+}
+
 TEST(PresetManagerTest, ListSkipsCorruptAndForeignFiles) {
   TempPresetDir tmp;
   PresetManager mgr(tmp.dir);

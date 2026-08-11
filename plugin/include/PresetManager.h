@@ -11,6 +11,12 @@
  * Layout:
  *   <user data dir>/TONE3000/Presets/<uuid>.t3kpreset   (user presets)
  *   <user data dir>/TONE3000/Presets/Factory/…          (read-only factory)
+ *   <system data dir>/TONE3000/Presets/Factory/…        (installer-shipped)
+ *
+ * The system Factory folder is where installers drop shipped presets
+ * (macOS /Library/Application Support, Windows ProgramData). Both Factory
+ * dirs are scanned; a user-Factory file with the same stem wins so local
+ * overrides of a shipped preset are possible.
  *
  * Ids are "user:<stem>" / "factory:<stem>" so the two namespaces can never
  * collide and the UI can tell them apart without extra lookups. Display
@@ -40,8 +46,11 @@ public:
 
   PresetManager();
 
-  /** Store presets under an explicit base directory (tests use a temp dir). */
-  explicit PresetManager(const juce::File& baseDir);
+  /** Store presets under an explicit base directory (tests use a temp dir).
+      `systemFactory` stands in for the installer-shipped Factory dir; the
+      default keeps temp stores isolated from presets installed on the
+      machine. */
+  explicit PresetManager(const juce::File& baseDir, const juce::File& systemFactory = {});
 
   /** All presets, factory first, each section sorted by name. */
   std::vector<Info> list() const;
@@ -68,6 +77,7 @@ public:
 
 private:
   juce::File fileForId(const juce::String& id) const;
+  static juce::File defaultSystemFactoryDir();
   static juce::ValueTree readPresetFile(const juce::File& file);
   static bool writePresetFile(const juce::File& file, const juce::ValueTree& preset);
 
@@ -76,5 +86,6 @@ private:
   bool writeOrder(const juce::StringArray& ids) const;
 
   juce::File userDir;
-  juce::File factoryDir;
+  juce::File factoryDir;        // user-local Factory/ (dev drops, Linux install)
+  juce::File systemFactoryDir;  // installer-shipped Factory/ (invalid when absent)
 };

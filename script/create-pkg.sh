@@ -48,6 +48,7 @@ STAGE="${STAGE:-./build/pkg-stage}"
 COMPONENTS_DIR="${COMPONENTS_DIR:-./build/pkg-components}"
 OUTPUT_PKG="./build/${PKG_NAME}.pkg"
 INSTALLER_DIR="./script/installer"
+FACTORY_PRESETS_SRC="./resources/factory-presets"
 ENTITLEMENTS="${ENTITLEMENTS:-./plugin/TONE3000-Standalone.entitlements}"
 
 SIGN_ID_APP="${SIGN_ID_APP:-}"
@@ -148,6 +149,17 @@ if [[ -d "$RELEASE/CLAP/TONE3000.clap" ]]; then
   HAVE_CLAP=1
 fi
 
+HAVE_PRESETS=0
+if compgen -G "${FACTORY_PRESETS_SRC}/*.t3kpreset" > /dev/null; then
+  echo "Staging factory presets..."
+  mkdir -p "$STAGE/presets/Library/Application Support/TONE3000/Presets/Factory"
+  cp "${FACTORY_PRESETS_SRC}"/*.t3kpreset \
+    "$STAGE/presets/Library/Application Support/TONE3000/Presets/Factory/"
+  HAVE_PRESETS=1
+else
+  echo "No factory presets in $FACTORY_PRESETS_SRC (skipping)."
+fi
+
 xattr -cr "$STAGE" 2>/dev/null || true
 
 # 2. Sign each staged bundle
@@ -206,6 +218,15 @@ if [[ $HAVE_CLAP -eq 1 ]]; then
     "$COMPONENTS_DIR/_clap.pkg"
 fi
 
+if [[ $HAVE_PRESETS -eq 1 ]]; then
+  pkgbuild \
+    --root "$STAGE/presets" \
+    --identifier "com.tone3000.factorypresets" \
+    --version "$VERSION" \
+    --install-location "/" \
+    "$COMPONENTS_DIR/_presets.pkg"
+fi
+
 # 4. Generate distribution.xml for the components we actually built
 
 DIST_XML="$COMPONENTS_DIR/distribution.xml"
@@ -239,6 +260,7 @@ RES="$INSTALLER_DIR/Resources"
   [[ $HAVE_AU   -eq 1 ]] && echo '    <line choice="au" />'
   [[ $HAVE_AAX  -eq 1 ]] && echo '    <line choice="aax" />'
   [[ $HAVE_CLAP -eq 1 ]] && echo '    <line choice="clap" />'
+  [[ $HAVE_PRESETS -eq 1 ]] && echo '    <line choice="presets" />'
   echo '  </choices-outline>'
 
   cat <<XML
@@ -281,6 +303,15 @@ XML
     <pkg-ref id="com.tone3000.clap" />
   </choice>
   <pkg-ref id="com.tone3000.clap" version="${VERSION}" auth="root">_clap.pkg</pkg-ref>
+XML
+  fi
+
+  if [[ $HAVE_PRESETS -eq 1 ]]; then
+    cat <<XML
+  <choice id="presets" title="Factory Presets" description="Installs read-only TONE3000 presets to /Library/Application Support/TONE3000/Presets/Factory.">
+    <pkg-ref id="com.tone3000.factorypresets" />
+  </choice>
+  <pkg-ref id="com.tone3000.factorypresets" version="${VERSION}" auth="root">_presets.pkg</pkg-ref>
 XML
   fi
 

@@ -459,6 +459,10 @@ jobs:
           install -m 755 script/installer/linux/install.sh "$STAGE/install.sh"
           install -m 644 script/installer/linux/README.txt "$STAGE/README.txt"
           install -m 644 script/installer/linux/tone3000.png "$STAGE/tone3000.png"
+          if compgen -G "resources/factory-presets/*.t3kpreset" > /dev/null; then
+            mkdir -p "$STAGE/factory-presets"
+            cp resources/factory-presets/*.t3kpreset "$STAGE/factory-presets/"
+          fi
           tar -czf "build/${PKG}.tar.gz" -C build "$PKG"
           echo "Created build/${PKG}.tar.gz"
 

@@ -71,4 +71,19 @@ run mkdir -p "$dest_dir"
 run rm -rf "${dest_dir:?}/$bundle"
 run cp -R "$src" "$dest_dir/"
 echo "Installed $bundle ($build_type) to $dest_dir"
+
+# Also drop shipped factory presets into the user Factory folder so a local
+# plugin install (without the .pkg) still shows the TONE3000 preset section.
+factory_src="resources/factory-presets"  # cwd is the repo root (cd at top)
+case "$os" in
+  Darwin) factory_dest="$HOME/Library/Application Support/TONE3000/Presets/Factory" ;;
+  Linux)  factory_dest="${XDG_CONFIG_HOME:-$HOME/.config}/TONE3000/Presets/Factory" ;;
+  *) factory_dest="" ;;
+esac
+if [[ -n "$factory_dest" ]] && compgen -G "${factory_src}/*.t3kpreset" > /dev/null; then
+  mkdir -p "$factory_dest"
+  cp "${factory_src}"/*.t3kpreset "$factory_dest/"
+  echo "Installed factory presets to $factory_dest"
+fi
+
 echo "Rescan plugins in your DAW to pick up the change."
