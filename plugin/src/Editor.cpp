@@ -35,6 +35,9 @@ void TONE3000Editor::parentHierarchyChanged() {
   // when the editor is closed and reopened.
   if (auto* peer = getPeer()) {
     EditorWebViewSetup::enableHostWindowMouseMovedEvents(peer->getNativeHandle());
+    // And keep hover alive while the host window is not key (mouse-moved
+    // events normally stop the moment the user clicks a DAW control).
+    EditorWebViewSetup::installHoverMouseForwarding(peer->getNativeHandle());
     // Same timing: the WKWebView flashes its system-grey background between
     // window creation and the page's first paint; make it draw none so the
     // black window shows through instead.

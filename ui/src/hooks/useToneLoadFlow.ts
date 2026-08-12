@@ -67,8 +67,8 @@ const readDirectoryFiles = async (root: FileSystemDirectoryEntry): Promise<File[
 interface UseToneLoadFlowOptions {
   actions: ChainStateActions;
   stereoEnabled: boolean;
-  /** The internet gate's action wrapper (see useInternetGate). */
-  requireInternet: (action: () => void | Promise<void>) => void;
+  /** The connection gate's action wrapper (see useConnectionGate). */
+  requireConnection: (action: () => void | Promise<void>) => void;
   /** Open or close the in-plugin tone browser. */
   setShowToneBrowser: (show: boolean) => void;
 }
@@ -81,7 +81,7 @@ interface UseToneLoadFlowOptions {
 export function useToneLoadFlow({
   actions,
   stereoEnabled,
-  requireInternet,
+  requireConnection,
   setShowToneBrowser,
 }: UseToneLoadFlowOptions) {
   // A fully-resolved tone landed (Select callback or a browser card pick).
@@ -121,27 +121,27 @@ export function useToneLoadFlow({
   // the fallback for when the slot id goes stale, e.g. undone away mid-flow.
   const handleAddModel = useCallback(
     (side: ChainSide, insertBlockId: string) => {
-      requireInternet(async () => {
+      requireConnection(async () => {
         sessionStorage.removeItem(SWAP_STORAGE_KEY);
         sessionStorage.setItem(INSERT_TARGET_STORAGE_KEY, insertBlockId);
         if (stereoEnabled) await actions.setActiveSide(side);
         setShowToneBrowser(true);
       });
     },
-    [actions, requireInternet, setShowToneBrowser, stereoEnabled]
+    [actions, requireConnection, setShowToneBrowser, stereoEnabled]
   );
 
   // Swap: remember the target block, then run the same browse flow as add.
   // The pending swap id is consumed when the picked tone lands.
   const handleSwapBlock = useCallback(
     (blockId: string) => {
-      requireInternet(() => {
+      requireConnection(() => {
         sessionStorage.removeItem(INSERT_TARGET_STORAGE_KEY);
         sessionStorage.setItem(SWAP_STORAGE_KEY, blockId);
         setShowToneBrowser(true);
       });
     },
-    [requireInternet, setShowToneBrowser]
+    [requireConnection, setShowToneBrowser]
   );
 
   // Drop a local .nam/.wav (or a folder of them) on an insert slot: no

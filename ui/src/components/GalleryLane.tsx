@@ -1,5 +1,4 @@
 import React from 'react';
-import { SortableContext, horizontalListSortingStrategy } from '@dnd-kit/sortable';
 import { ArrowUpDown, Link, PlusCircle } from 'lucide-react';
 import { GalleryBlock, AddTile } from './GalleryBlock';
 import type { AddTileRouting } from './GalleryBlock';
@@ -259,36 +258,40 @@ export const GalleryLane: React.FC<{
         onClearBranch={onClearBranch ?? (() => {})}
       />
     )}
-    <SortableContext
-      items={items.map((item) => item.blockId)}
-      strategy={horizontalListSortingStrategy}
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: `${TILE_GAP}px`,
+        position: 'relative',
+        zIndex: 2,
+      }}
     >
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: `${TILE_GAP}px`,
-          position: 'relative',
-          zIndex: 2,
-        }}
-      >
-        {items.map((item, index) =>
-          isInsertSlot(item) ? (
-            <AddTile
-              key={item.blockId}
-              id={item.blockId}
-              size={tileSize}
-              routing={addTileRouting(index, items.length)}
-              onClick={() => onAdd(item.blockId)}
-              onPaste={onPasteBlock != null ? () => onPasteBlock(index) : null}
-            />
-          ) : (
-            <GalleryBlock key={item.blockId} block={item} size={tileSize} onOpen={onOpen} />
-          )
-        )}
-      </div>
-    </SortableContext>
+      {items.map((item, index) =>
+        isInsertSlot(item) ? (
+          <AddTile
+            key={item.blockId}
+            id={item.blockId}
+            index={index}
+            group={side}
+            size={tileSize}
+            routing={addTileRouting(index, items.length)}
+            onClick={() => onAdd(item.blockId)}
+            onPaste={onPasteBlock != null ? () => onPasteBlock(index) : null}
+          />
+        ) : (
+          <GalleryBlock
+            key={item.blockId}
+            block={item}
+            index={index}
+            group={side}
+            size={tileSize}
+            onOpen={onOpen}
+          />
+        )
+      )}
+    </div>
   </div>
 );
 

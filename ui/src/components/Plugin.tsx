@@ -6,7 +6,7 @@ import type { ChainActions } from '../hooks/useChainActions';
 import { usePresets } from '../hooks/usePresets';
 import { useParameter } from '../hooks/useParameter';
 import { useAudioDevice } from '../hooks/useAudioDevice';
-import { useInternetGate } from '../hooks/useInternetGate';
+import { useConnectionGate } from '../hooks/useConnectionGate';
 import { useToneSession } from '../hooks/useToneSession';
 import { useToneLoadFlow } from '../hooks/useToneLoadFlow';
 import { useUpdateNotice } from '../hooks/useUpdateNotice';
@@ -23,7 +23,7 @@ import { useChromeChoreography, BANNER_ANIM_MS } from '../hooks/useChromeChoreog
 import { DbMeter } from './DbMeter';
 import { TunerView } from './TunerView';
 import { OAuthOverlay } from './OAuthOverlay';
-import { OfflineModal } from './OfflineModal';
+import { ConnectionModal } from './ConnectionModal';
 import { ToneBrowser } from './ToneBrowser';
 import { UpdateNotice } from './UpdateNotice';
 import Settings, { type SettingsTab } from './Settings';
@@ -117,6 +117,36 @@ export const Plugin: React.FC = () => {
   );
   const closeTuner = useCallback(() => handleToggleTuner(false), [handleToggleTuner]);
 
+  // Top-bar actions whose effect lands on the main screen (stereo mode,
+  // undo/redo, loading or saving a preset) leave the tuner first, so the
+  // result is visible instead of hidden behind the tuner takeover.
+  const closeTunerThen = useCallback(
+    <A extends unknown[], R>(fn: (...args: A) => R) =>
+      (...args: A): R => {
+        if (showTuner) void handleToggleTuner(false);
+        return fn(...args);
+      },
+    [showTuner, handleToggleTuner]
+  );
+  const handleStereoToggle = useMemo(
+    () => closeTunerThen(actions.setStereoMode),
+    [closeTunerThen, actions]
+  );
+  const handleUndo = useMemo(() => closeTunerThen(actions.undo), [closeTunerThen, actions]);
+  const handleRedo = useMemo(() => closeTunerThen(actions.redo), [closeTunerThen, actions]);
+  // Rename/delete/move only touch the preset list, so they stay unwrapped.
+  const headerPresetStore = useMemo(
+    () => ({
+      ...presetStore,
+      actions: {
+        ...presetStore.actions,
+        save: closeTunerThen(presetStore.actions.save),
+        load: closeTunerThen(presetStore.actions.load),
+      },
+    }),
+    [presetStore, closeTunerThen]
+  );
+
   // Share: copy the tone's public TONE3000 page URL, the API's canonical
   // `url` (title slug + id). The plain id path is a fallback for summaries
   // that predate it. Clipboard writes go through native (webview clipboard
@@ -138,18 +168,20 @@ export const Plugin: React.FC = () => {
   );
 
   // First line of defence for network-dependent actions: an instant
-  // `navigator.onLine` check (no probe, no latency). It only catches the
-  // "no interface up" case; a connected-but-dead network still gets through
-  // and lands on the recovery paths (failed-navigation recovery, stream
-  // retry, block retry).
-  const internetGate = useInternetGate();
-  const { requireInternet } = internetGate;
+  // `navigator.onLine` check (no probe, no latency at click time) plus the
+  // cached result of the startup TLS probe, which stops OAuth from navigating
+  // the webview into an unrecoverable page when HTTPS is broken (wrong system
+  // clock, intercepting proxy). A connected-but-dead network still gets
+  // through and lands on the recovery paths (failed-navigation recovery,
+  // stream retry, block retry).
+  const connectionGate = useConnectionGate();
+  const { requireConnection } = connectionGate;
 
   // The add/swap browse flows and their pending targets.
   const loadFlow = useToneLoadFlow({
     actions,
     stereoEnabled,
-    requireInternet,
+    requireConnection,
     setShowToneBrowser,
   });
 
@@ -161,18 +193,24 @@ export const Plugin: React.FC = () => {
     onToneSelected: loadFlow.handleToneSelected,
     onAuthenticated: openToneBrowser,
   });
-  const { client: t3kClient, ensureNativeAuth, startLoginFlow } = session;
+  const { client: t3kClient, ensureNativeAuth, startLoginFlow, startSelectFlow } = session;
 
   const handleLogin = useCallback(
-    () => requireInternet(() => startLoginFlow()),
-    [requireInternet, startLoginFlow]
+    () => requireConnection(() => startLoginFlow()),
+    [requireConnection, startLoginFlow]
   );
   // Sign-in CTAs inside the browser (gated streams / Trending's discovery
   // footer) run the no-prompt login flow and return to this same browser,
   // never the full Select catalog.
   const handleBrowserSignIn = useCallback(
-    () => requireInternet(() => startLoginFlow({ openBrowser: true })),
-    [requireInternet, startLoginFlow]
+    () => requireConnection(() => startLoginFlow({ openBrowser: true })),
+    [requireConnection, startLoginFlow]
+  );
+  // Browse on TONE3000 leaves for the Select OAuth catalog, so it takes the
+  // same gate as login.
+  const handleBrowseTone3000 = useCallback(
+    () => requireConnection(() => startSelectFlow()),
+    [requireConnection, startSelectFlow]
   );
 
   const handleLogout = useCallback(async () => {
@@ -328,16 +366,16 @@ export const Plugin: React.FC = () => {
         )}
 
         <PluginHeader
-          presetStore={presetStore}
+          presetStore={headerPresetStore}
           activePreset={activePreset}
           stereoEnabled={stereoEnabled}
-          onStereoToggle={actions.setStereoMode}
+          onStereoToggle={handleStereoToggle}
           showTuner={showTuner}
           onToggleTuner={handleToggleTuner}
           canUndo={canUndo}
           canRedo={canRedo}
-          onUndo={actions.undo}
-          onRedo={actions.redo}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
           user={session.user}
           authenticated={authenticated}
           onOpenSettings={openDefaultSettings}
@@ -404,7 +442,7 @@ export const Plugin: React.FC = () => {
                   authPending={session.oauthPhase === 'returning'}
                   authenticated={authenticated}
                   onPickTone={session.selectToneById}
-                  onBrowseTone3000={session.startSelectFlow}
+                  onBrowseTone3000={handleBrowseTone3000}
                   onSignIn={handleBrowserSignIn}
                   onClose={handleBrowserClose}
                 />
@@ -477,14 +515,15 @@ export const Plugin: React.FC = () => {
           onDismiss={session.clearOauthError}
         />
 
-        {/* Offline gate for internet-dependent actions (add / swap / login). */}
-        <OfflineModal
-          open={internetGate.offlineModalOpen}
-          onRetry={internetGate.retry}
-          onDismiss={internetGate.dismiss}
+        {/* Connection gate for internet-dependent actions (add / swap /
+          login / select) and the startup TLS probe result. */}
+        <ConnectionModal
+          problem={connectionGate.problem}
+          onRetry={connectionGate.retry}
+          onDismiss={connectionGate.dismiss}
         />
 
-        {/* Update available, below OAuth/offline (z 3000) so those always win. */}
+        {/* Update available, below OAuth/connection (z 3000) so those always win. */}
         <UpdateNotice notice={updateNotice} onRemindLater={remindLater} />
       </ToastProvider>
     </div>

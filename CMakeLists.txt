@@ -389,6 +389,83 @@ if (EXISTS "${_juce_standalone_h}")
     endif()
 endif()
 
+# T3K_ZOOM_TOGGLE: make the standalone window's native zoom button ("+", the
+# green traffic light) a real toggle: first click grows the window to the
+# editor's maximum scale, second click restores the pre-zoom size. Stock JUCE
+# already has this shape in windowWillUseStandardFrame, but three bugs keep it
+# from ever toggling back: it reads max size / fixed aspect straight off the
+# peer constrainer (the standalone's DecoratorConstrainer only applies those
+# inside checkBounds, so it sees "unlimited" and zooms to the whole screen),
+# it compares the window *frame* against the *content* bounds (always off by
+# the title bar), and it uses exact float equality. Route the frame through
+# constrainRect (the same pass AppKit resizing uses) and compare sizes with
+# tolerance instead. The zoomed frame keeps the window's top-left corner and
+# is clamped on-screen.
+set(_juce_peer_mm "${LIB_DIR}/juce/modules/juce_gui_basics/native/juce_NSViewComponentPeer_mac.mm")
+if (EXISTS "${_juce_peer_mm}")
+    file(READ "${_juce_peer_mm}" _juce_peer_src)
+    if (NOT _juce_peer_src MATCHES "T3K_ZOOM_TOGGLE")
+        set(_juce_zoom_old
+[=[                if (auto* constrainer = owner->getConstrainer())
+                {
+                    if (auto* screen = [window screen])
+                    {
+                        const auto safeScreenBounds = convertToRectFloat (flippedScreenRect (owner->hasNativeTitleBar() ? r : [screen visibleFrame]));
+                        const auto originalBounds = owner->getFrameSize().addedTo (owner->getComponent().getScreenBounds()).toFloat();
+                        const auto expanded = originalBounds.withWidth  ((float) constrainer->getMaximumWidth())
+                                                            .withHeight ((float) constrainer->getMaximumHeight());
+                        const auto constrained = expanded.constrainedWithin (safeScreenBounds);
+
+                        return flippedScreenRect (makeCGRect ([&]
+                                                              {
+                                                                  if (constrained == owner->getBounds().toFloat())
+                                                                      return owner->lastSizeBeforeZoom.toFloat();
+
+                                                                  owner->lastSizeBeforeZoom = owner->getBounds().toFloat();
+                                                                  return constrained;
+                                                              }()));
+                    }
+                }]=])
+        set(_juce_zoom_new
+[=[                // T3K_ZOOM_TOGGLE (see CMakeLists patch comment)
+                if (owner->getConstrainer() != nullptr)
+                {
+                    const auto currentFrame = [window frame];
+
+                    // Grow around the window's own top-left corner, then let
+                    // the real constrainer pass shape it (max size, fixed
+                    // aspect ratio, title-bar border).
+                    NSRect desired = r;
+                    desired.origin.x = currentFrame.origin.x;
+                    desired.origin.y = NSMaxY (currentFrame) - desired.size.height;
+                    auto standardFrame = owner->constrainRect (desired);
+                    standardFrame.origin.y = NSMaxY (currentFrame) - standardFrame.size.height;
+                    standardFrame.origin.x = std::max (r.origin.x, std::min (standardFrame.origin.x, NSMaxX (r) - standardFrame.size.width));
+                    standardFrame.origin.y = std::max (r.origin.y, std::min (standardFrame.origin.y, NSMaxY (r) - standardFrame.size.height));
+
+                    const auto alreadyZoomed = std::abs (currentFrame.size.width  - standardFrame.size.width)  < 2.0
+                                            && std::abs (currentFrame.size.height - standardFrame.size.height) < 2.0;
+
+                    if (alreadyZoomed && ! owner->lastSizeBeforeZoom.isEmpty())
+                        return flippedScreenRect (makeCGRect (owner->getFrameSize()
+                                                                  .addedTo (owner->lastSizeBeforeZoom.toNearestInt())
+                                                                  .toFloat()));
+
+                    owner->lastSizeBeforeZoom = owner->getBounds().toFloat();
+                    return standardFrame;
+                }]=])
+        string(REPLACE "${_juce_zoom_old}" "${_juce_zoom_new}" _juce_peer_src "${_juce_peer_src}")
+        if (NOT _juce_peer_src MATCHES "T3K_ZOOM_TOGGLE")
+            message(FATAL_ERROR
+                "T3K_ZOOM_TOGGLE: failed to patch ${_juce_peer_mm}. "
+                "The JUCE source layout likely changed in this version. Update the patch "
+                "anchors in CMakeLists.txt.")
+        endif()
+        file(WRITE "${_juce_peer_mm}" "${_juce_peer_src}")
+        message(STATUS "Patched JUCE NSViewComponentPeer: toggling zoom button")
+    endif()
+endif()
+
 # Download GoogleTest Framework using CPM
 CPMAddPackage(
     NAME GOOGLETEST

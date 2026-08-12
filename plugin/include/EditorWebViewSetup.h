@@ -31,6 +31,18 @@ void clearAuthCookies();
 void enableHostWindowMouseMovedEvents(void* nsViewPtr);
 
 /**
+ * Keep webview hover alive while the plugin window is not key.
+ *
+ * AppKit delivers responder-chain mouseMoved: events only to the key window,
+ * so hover feedback dies the moment the user clicks a DAW control and only
+ * comes back after a click inside the plugin. Installs an always-active
+ * NSTrackingArea on the WKWebView that makes the plugin window key when the
+ * cursor enters and forwards mouseMoved: to the webview until that sticks.
+ * Idempotent per webview; implemented in WindowMouseEvents.mm.
+ */
+void installHoverMouseForwarding(void* nsViewPtr);
+
+/**
  * Kill the grey pre-load flash: stop the WKWebView drawing its own (system
  * grey) background before the page's first paint, and paint the hosting
  * NSWindow black behind it. Takes the editor's NSView* (peer native handle);
@@ -39,6 +51,18 @@ void enableHostWindowMouseMovedEvents(void* nsViewPtr);
  */
 void applyBlackWebViewBackground(void* nsViewPtr);
 #endif
+
+/**
+ * Re-dispatch a Space keypress to the host DAW.
+ *
+ * Backs the `forwardSpaceToHost` native function: the UI swallows Space it
+ * has no use for and hands it here so the DAW's play/stop shortcut keeps
+ * working while the plugin has keyboard focus. Hands keyboard focus back to
+ * the host, then delivers synthesized Space key events to it. Takes the
+ * editor's peer native handle. Best effort per host; implemented in
+ * WindowKeyEvents.mm (macOS) and WindowKeyEvents.cpp (Windows/Linux).
+ */
+void forwardSpaceKeyToHost(void* nativeHandle);
 
 /**
  * Main-UI WebView with a navigation allowlist.

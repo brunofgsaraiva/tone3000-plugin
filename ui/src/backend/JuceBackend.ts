@@ -19,6 +19,16 @@ function rawJuceBackend(): RawJuceBackend | undefined {
   return (window as unknown as { __JUCE__?: { backend?: RawJuceBackend } }).__JUCE__?.backend;
 }
 
+/** True when the native side registered the function (false in dev browser). */
+export function isNativeFunctionRegistered(name: string): boolean {
+  const juce = (
+    window as unknown as {
+      __JUCE__?: { initialisationData?: { __juce__functions?: string[] } };
+    }
+  ).__JUCE__;
+  return juce?.initialisationData?.__juce__functions?.includes(name) ?? false;
+}
+
 export class JuceBackend implements IAudioBackend {
   getParameterState<T extends ParameterType>(name: string, type: T): ParameterMap[T] {
     const adapt = juceMap[type];

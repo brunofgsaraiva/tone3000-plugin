@@ -1,6 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { useSortable } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { useSortable } from '@dnd-kit/react/sortable';
 import { ArrowLeftRight, ClipboardPaste, Copy, PlusCircle, Power, Trash2 } from 'lucide-react';
 import { BlockEnergyBorder, BlockLed } from './BlockLed';
 import { ToneImage } from './GearIcon';
@@ -9,8 +8,7 @@ import { RetryLoadBadge } from './RetryLoadBadge';
 import { meterId } from '../hooks/useMeters';
 import { useChainActions } from '../hooks/useChainActions';
 import { HELP, helpProps, toneTileHelp } from './helpText';
-import type { ChainItem, ToneBlock } from '../types/chain';
-import { isInsertSlot } from '../types/chain';
+import type { ChainSide, ToneBlock } from '../types/chain';
 import { ChromeIconButton } from './ChromeIconButton';
 import { TileMenu } from './TileMenu';
 import type { TileMenuAnchor } from './TileMenu';
@@ -24,12 +22,13 @@ import { HIGHLIGHT, ICON_SIZE, SURFACE, SURFACE_RAISED } from './theme';
  * horizontal output level + clip strip along the bottom. Tap/click opens
  * the detail card; dragging the tile reorders it.
  *
- * The full visual surface (TileSurface) is shared between the sortable tile
- * and the DragOverlay ghost, so the copy that follows the pointer during a
- * drag looks identical to the resting tile, just semi-transparent.
+ * While dragging, the tile itself travels with the pointer (dnd-kit's
+ * Feedback plugin lifts it out of the lane and leaves a hidden placeholder
+ * holding its slot, which reveals the ghost rail behind it), dimmed like the
+ * old chain's dragged card.
  */
 
-/** Opacity of the moving copy while dragging (matches the old chain). */
+/** Opacity of the tile while it travels with the pointer. */
 const DRAG_GHOST_OPACITY = 0.75;
 
 /** Keep tile buttons from taking focus on press: the webview scrolls the
@@ -72,7 +71,7 @@ const useTileMenu = () => {
   return { menuAnchor, openMenu, closeMenu, shouldIgnoreClick };
 };
 
-/** Interactive wiring for a tile's chrome; omitted for the drag ghost. */
+/** Interactive wiring for a tile's chrome. */
 interface TileActions {
   onOpen: (e: React.MouseEvent) => void;
   onTogglePower: (e: React.MouseEvent) => void;
@@ -80,21 +79,20 @@ interface TileActions {
   onRemove: (e: React.MouseEvent) => void;
   /** Retry a failed model download (shown when block.loadFailed). */
   onRetryLoad: () => void;
-  /** useSortable attributes + listeners for the whole tile (press+move to drag). */
-  sortable: React.HTMLAttributes<HTMLElement>;
 }
 
 /**
  * The complete tile visual: artwork, loading scrim, top action strip and
- * bottom meter. Rendered inert (no handlers) inside the DragOverlay so the
- * moving copy matches the resting tile exactly.
+ * bottom meter. `dragging` pins the action strip visible while the tile
+ * travels with the pointer (hover state can't reach it mid-drag).
  */
 const TileSurface: React.FC<{
   block: ToneBlock;
   size: number;
   enabled: boolean;
-  actions?: TileActions;
-}> = ({ block, size, enabled, actions }) => {
+  dragging: boolean;
+  actions: TileActions;
+}> = ({ block, size, enabled, dragging, actions }) => {
   const { blockId, tone } = block;
 
   // A model download/prepare is in flight: `modelLoading` covers switches
@@ -116,14 +114,10 @@ const TileSurface: React.FC<{
     >
       <div
         // Header reveals on :hover via CSS (see index.css), since JS hover state
-        // dies across drag re-renders. The inert drag ghost pins it visible.
-        className={actions ? 'gallery-tile' : 'gallery-tile tile-chrome-visible'}
-        onClick={actions?.onOpen}
-        // Sortable listeners live on the whole tile face (press+move to drag).
-        {...(actions?.sortable ?? {})}
-        // The inert drag ghost skips help: it rides under the pointer, so its
-        // hover events would pin the hint for the whole drag.
-        {...(actions ? helpProps(toneTileHelp(tone.title)) : {})}
+        // dies across drag re-renders. The traveling tile pins it visible.
+        className={dragging ? 'gallery-tile tile-chrome-visible' : 'gallery-tile'}
+        onClick={actions.onOpen}
+        {...helpProps(toneTileHelp(tone.title))}
         style={{
           width: `${size}px`,
           height: `${size}px`,
@@ -131,7 +125,7 @@ const TileSurface: React.FC<{
           backgroundColor: SURFACE,
           position: 'relative',
           overflow: 'hidden',
-          cursor: actions ? 'pointer' : 'grabbing',
+          cursor: 'pointer',
           boxSizing: 'border-box',
           // Touch drags: without this, touch devices claim the gesture for
           // lane scrolling and pointercancel kills the drag instantly. Drag
@@ -172,12 +166,12 @@ const TileSurface: React.FC<{
               pointerEvents: 'none',
             }}
           >
-            {block.loadFailed && actions ? (
+            {block.loadFailed ? (
               <div style={{ pointerEvents: 'auto' }}>
                 <RetryLoadBadge onRetry={actions.onRetryLoad} />
               </div>
             ) : (
-              !block.loadFailed && <LoadingDots />
+              <LoadingDots />
             )}
           </div>
         )}
@@ -217,26 +211,23 @@ const TileSurface: React.FC<{
             tone="power"
             on={enabled}
             help={HELP.blockPower}
-            onClick={(e) => actions?.onTogglePower(e)}
+            onClick={actions.onTogglePower}
             onMouseDown={preventFocus}
-            style={{ pointerEvents: actions ? undefined : 'none' }}
           >
             <Power size={ICON_SIZE} />
           </ChromeIconButton>
           <div style={{ display: 'flex', gap: '16px' }}>
             <ChromeIconButton
               help={HELP.swapTone}
-              onClick={(e) => actions?.onSwap(e)}
+              onClick={actions.onSwap}
               onMouseDown={preventFocus}
-              style={{ pointerEvents: actions ? undefined : 'none' }}
             >
               <ArrowLeftRight size={ICON_SIZE} />
             </ChromeIconButton>
             <ChromeIconButton
               help={HELP.removeBlock}
-              onClick={(e) => actions?.onRemove(e)}
+              onClick={actions.onRemove}
               onMouseDown={preventFocus}
-              style={{ pointerEvents: actions ? undefined : 'none' }}
             >
               <Trash2 size={ICON_SIZE} />
             </ChromeIconButton>
@@ -257,6 +248,10 @@ const TileSurface: React.FC<{
 
 interface GalleryBlockProps {
   block: ToneBlock;
+  /** Position within the lane; keeps the sortable registry in sync. */
+  index: number;
+  /** The lane this tile sorts in. */
+  group: ChainSide;
   /** Tile edge, px. */
   size: number;
   /** Open the detail takeover for this block. */
@@ -267,88 +262,85 @@ interface GalleryBlockProps {
     reaches tiles whose block snapshot actually changed. Mutations come from
     the ChainActions context, so there are no per-render callback props to
     defeat the memo. */
-export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(({ block, size, onOpen }) => {
-  const { blockId, params } = block;
-  const actions = useChainActions();
-  const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick } = useTileMenu();
+export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
+  ({ block, index, group, size, onOpen }) => {
+    const { blockId, params } = block;
+    const actions = useChainActions();
+    const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick } = useTileMenu();
 
-  // Optimistic power state; native converges via the chainChanged resync
-  // (same pattern as the detail card).
-  const [enabled, setEnabled] = useState(params.enabled);
-  useEffect(() => setEnabled(params.enabled), [params.enabled]);
+    // Optimistic power state; native converges via the chainChanged resync
+    // (same pattern as the detail card).
+    const [enabled, setEnabled] = useState(params.enabled);
+    useEffect(() => setEnabled(params.enabled), [params.enabled]);
 
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: blockId,
-  });
+    const { ref, isDragging } = useSortable({ id: blockId, index, group });
 
-  const handleTogglePower = useCallback(
-    (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setEnabled((prev) => {
-        actions.setBlockParam(blockId, 'enabled', !prev);
-        return !prev;
-      });
-    },
-    [actions, blockId]
-  );
+    const handleTogglePower = useCallback(
+      (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setEnabled((prev) => {
+          actions.setBlockParam(blockId, 'enabled', !prev);
+          return !prev;
+        });
+      },
+      [actions, blockId]
+    );
 
-  return (
-    <div
-      ref={setNodeRef}
-      onContextMenu={openMenu}
-      style={{
-        // Translate only (no scale); scale transforms cause subpixel jitter
-        // on the overlaid controls.
-        transform: CSS.Translate.toString(transform),
-        transition: isDragging ? 'none' : transition,
-        // The DragOverlay ghost is the moving copy; hiding the original
-        // reveals the plus-circle rail behind the vacated slot.
-        opacity: isDragging ? 0 : 1,
-        flexShrink: 0,
-        position: 'relative',
-        // Above the neighboring tiles while the action sheet is up.
-        zIndex: menuAnchor ? 5 : undefined,
-      }}
-    >
-      <TileSurface
-        block={block}
-        size={size}
-        enabled={enabled}
-        actions={{
-          onOpen: (e) => {
-            if (shouldIgnoreClick(e)) return;
-            onOpen(blockId);
-          },
-          onTogglePower: handleTogglePower,
-          onSwap: (e) => {
-            e.stopPropagation();
-            actions.swapBlock(blockId);
-          },
-          onRemove: (e) => {
-            e.stopPropagation();
-            actions.removeBlock(blockId);
-          },
-          onRetryLoad: () => actions.retryLoad(blockId),
-          sortable: { ...attributes, ...listeners },
+    return (
+      <div
+        ref={ref}
+        onContextMenu={openMenu}
+        style={{
+          // Dim the tile while it travels with the pointer; the hidden
+          // placeholder dnd-kit leaves in the lane reveals the plus-circle
+          // rail behind the vacated slot.
+          opacity: isDragging ? DRAG_GHOST_OPACITY : 1,
+          flexShrink: 0,
+          position: 'relative',
+          // Above the neighboring tiles while the action sheet is up.
+          zIndex: menuAnchor ? 5 : undefined,
         }}
-      />
-      {menuAnchor && (
-        <TileMenu
-          anchor={menuAnchor}
-          onClose={closeMenu}
-          items={[
-            {
-              label: 'Copy',
-              icon: <Copy size={16} />,
-              help: HELP.copyBlock,
-              onSelect: () => copyBlock(blockId),
+      >
+        <TileSurface
+          block={block}
+          size={size}
+          enabled={enabled}
+          dragging={isDragging}
+          actions={{
+            onOpen: (e) => {
+              if (shouldIgnoreClick(e)) return;
+              onOpen(blockId);
             },
-          ]}
+            onTogglePower: handleTogglePower,
+            onSwap: (e) => {
+              e.stopPropagation();
+              actions.swapBlock(blockId);
+            },
+            onRemove: (e) => {
+              e.stopPropagation();
+              actions.removeBlock(blockId);
+            },
+            onRetryLoad: () => actions.retryLoad(blockId),
+          }}
         />
-      )}
-    </div>
-  );
-});
+        {menuAnchor && (
+          <TileMenu
+            anchor={menuAnchor}
+            onClose={closeMenu}
+            items={[
+              {
+                label: 'Copy',
+                icon: <Copy size={16} />,
+                help: HELP.copyBlock,
+                onSelect: () => copyBlock(blockId),
+              },
+            ]}
+          />
+        )}
+      </div>
+    );
+  }
+);
 GalleryBlock.displayName = 'GalleryBlock';
 
 /** Radius of the PlusCircle glyph; routing lines run edge-to-circle. */
@@ -358,7 +350,7 @@ const PLUS_CIRCLE_RADIUS = 20;
     continuation of the lane's connector lines). */
 export type AddTileRouting = 'left' | 'right' | 'both' | 'none';
 
-/** Shared face of the insert slot tile (also used by the drag ghost). */
+/** Face of the insert slot tile. */
 const addTileFaceStyle = (size: number): React.CSSProperties => ({
   width: `${size}px`,
   height: `${size}px`,
@@ -378,6 +370,10 @@ const addTileFaceStyle = (size: number): React.CSSProperties => ({
 interface AddTileProps {
   /** Insert slot block id. */
   id: string;
+  /** Position within the lane; keeps the sortable registry in sync. */
+  index: number;
+  /** The lane this tile sorts in. */
+  group: ChainSide;
   size: number;
   routing: AddTileRouting;
   onClick: () => void;
@@ -390,15 +386,21 @@ interface AddTileProps {
     repositioned within its lane, like any other block. Routing lines continue
     the lane's connector line through to the plus circle. Also the drop zone
     for local .nam / IR .wav files (loaded natively, no browser flow). */
-export const AddTile: React.FC<AddTileProps> = ({ id, size, routing, onClick, onPaste = null }) => {
+export const AddTile: React.FC<AddTileProps> = ({
+  id,
+  index,
+  group,
+  size,
+  routing,
+  onClick,
+  onPaste = null,
+}) => {
   const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick } = useTileMenu();
   const actions = useChainActions();
   const toast = useToast();
   // True while an OS file drag hovers the tile (drop-target highlight).
   const [dropArmed, setDropArmed] = useState(false);
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id,
-  });
+  const { ref, isDragging } = useSortable({ id, index, group });
 
   // The global drop swallow (main.tsx) only stops the webview navigating
   // away; accepting the drop here still needs the dragover cancelled with
@@ -435,7 +437,7 @@ export const AddTile: React.FC<AddTileProps> = ({ id, size, routing, onClick, on
 
   return (
     <div
-      ref={setNodeRef}
+      ref={ref}
       onClick={(e) => {
         if (shouldIgnoreClick(e)) return;
         onClick();
@@ -444,15 +446,11 @@ export const AddTile: React.FC<AddTileProps> = ({ id, size, routing, onClick, on
       onDragOver={handleDragOver}
       onDragLeave={() => setDropArmed(false)}
       onDrop={handleDrop}
-      {...attributes}
-      {...listeners}
       {...helpProps(HELP.addTile)}
       style={{
         ...addTileFaceStyle(size),
         backgroundColor: dropArmed ? HIGHLIGHT : SURFACE_RAISED,
-        transform: CSS.Translate.toString(transform),
-        transition: isDragging ? 'none' : transition,
-        opacity: isDragging ? 0 : 1,
+        opacity: isDragging ? DRAG_GHOST_OPACITY : 1,
         cursor: 'pointer',
         // Touch drags need the gesture (see the tone tile face).
         touchAction: 'none',
@@ -478,29 +476,6 @@ export const AddTile: React.FC<AddTileProps> = ({ id, size, routing, onClick, on
           ]}
         />
       )}
-    </div>
-  );
-};
-
-/** Tile clone for the DragOverlay: the full tile surface at reduced opacity
-    (identical chrome, dimmed like the old chain's dragged card), following
-    the pointer so drags can cross lanes without being clipped by the lane's
-    overflow. */
-export const GalleryTileGhost: React.FC<{
-  item: ChainItem;
-  size: number;
-}> = ({ item, size }) => {
-  if (isInsertSlot(item)) {
-    return (
-      <div style={{ ...addTileFaceStyle(size), opacity: DRAG_GHOST_OPACITY, cursor: 'grabbing' }}>
-        <PlusCircle size={40} strokeWidth={1} />
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ opacity: DRAG_GHOST_OPACITY, cursor: 'grabbing' }}>
-      <TileSurface block={item} size={size} enabled={item.params.enabled} />
     </div>
   );
 };

@@ -38,7 +38,7 @@ const REMIND_OPTIONS = [
 /**
  * "Update available" notice, shown at most once per editor-open when the
  * startup version check (useUpdateNotice) finds a newer published build.
- * Same full-window scrim language as OfflineModal / OAuthOverlay, one layer
+ * Same full-window scrim language as ConnectionModal / OAuthOverlay, one layer
  * below them so a connectivity/auth problem always wins.
  */
 export const UpdateNotice: React.FC<UpdateNoticeProps> = ({ notice, onRemindLater }) => {

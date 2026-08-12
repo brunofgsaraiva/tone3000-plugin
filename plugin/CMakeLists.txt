@@ -184,9 +184,19 @@ if (NOT HEADLESS)
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.mm)
         # Hover/cursor fix for DAW-hosted windows (see WindowMouseEvents.mm).
         target_sources(${PROJECT_NAME} PRIVATE src/WindowMouseEvents.mm)
+        # Space passthrough to the host DAW (see WindowKeyEvents.mm).
+        target_sources(${PROJECT_NAME} PRIVATE src/WindowKeyEvents.mm)
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.mm)
     else()
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.cpp)
+        # Space passthrough to the host DAW (see WindowKeyEvents.cpp).
+        target_sources(${PROJECT_NAME} PRIVATE src/WindowKeyEvents.cpp)
+        if (UNIX)
+            # JUCE dlopens libX11 instead of linking it; the direct Xlib
+            # calls in WindowKeyEvents.cpp need the real link.
+            find_package(X11 REQUIRED)
+            target_link_libraries(${PROJECT_NAME} PRIVATE X11::X11)
+        endif()
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.cpp)
     endif()
 endif()

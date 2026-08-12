@@ -226,7 +226,8 @@ void TONE3000Processor::setStateInformation(const void* data, int sizeInBytes) {
   // Older projects have no editorScale; keep the 1x default. The editor
   // clamps to its supported range when it reads this.
   editorScale.store(static_cast<double>(state.getProperty("editorScale", 1.0)));
-  editorExtraHeight.store(static_cast<int>(state.getProperty("editorExtraHeight", 0)));
+  // Default matches the UI's default-visible hint bar (see Processor.h).
+  editorExtraHeight.store(static_cast<int>(state.getProperty("editorExtraHeight", 36)));
 
   // A missing child clears the map; a project without mappings must not
   // inherit the previous session's.

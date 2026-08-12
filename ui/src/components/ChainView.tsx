@@ -1,23 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import {
-  DndContext,
-  DragOverlay,
-  closestCenter,
-  pointerWithin,
-  KeyboardSensor,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core';
+import { DragDropProvider } from '@dnd-kit/react';
+import { isSortable } from '@dnd-kit/react/sortable';
+import { KeyboardSensor, PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom';
 import type {
-  CollisionDetection,
+  DragDropManager,
   DragEndEvent,
   DragOverEvent,
   DragStartEvent,
-} from '@dnd-kit/core';
-import { arrayMove, sortableKeyboardCoordinates } from '@dnd-kit/sortable';
+  Sensors,
+} from '@dnd-kit/dom';
+import { arrayMove } from '@dnd-kit/helpers';
 import { ChainBlock } from './ChainBlock';
-import { GalleryTileGhost } from './GalleryBlock';
-import { GalleryPointerSensor, GALLERY_DRAG_DISTANCE_PX } from './galleryPointerSensor';
 import {
   BranchElbow,
   EdgeFade,
@@ -67,16 +60,26 @@ interface ChainViewProps {
   sampleRate: number;
 }
 
-/**
- * Prefer the tile actually under the pointer; only fall back to nearest-
- * center when the pointer is in a gap. closestCenter alone oscillates during
- * cross-lane drags: right after a move shifts the layout, stale rects can
- * make the "nearest" target flip back to the old lane.
- */
-const galleryCollisionDetection: CollisionDetection = (args) => {
-  const pointerCollisions = pointerWithin(args);
-  return pointerCollisions.length > 0 ? pointerCollisions : closestCenter(args);
-};
+/** A few px of travel before a drag engages, so tap/click stays a click. */
+const GALLERY_DRAG_DISTANCE_PX = 6;
+
+const sensors: Sensors = [
+  // Distance-only activation (the stock constraints add a 200ms hold trigger,
+  // which would turn a slow click-to-open into a drag). The sensor's default
+  // guard already keeps buttons and other interactive chrome from starting
+  // drags, so power/swap/trash stay clicks.
+  PointerSensor.configure({
+    activationConstraints: () => [
+      new PointerActivationConstraints.Distance({ value: GALLERY_DRAG_DISTANCE_PX }),
+    ],
+  }),
+  // Stock keyboard sorting: Space or Enter on a focused tile picks it up,
+  // arrows snap it one slot per press (the sortable's SortableKeyboardPlugin
+  // owns the targeting), Space/Enter drops, Escape cancels. A grab can only
+  // start on the focused tile, so this stays intentional: Space anywhere
+  // else still falls through to the host DAW (see spacePassthrough.ts).
+  KeyboardSensor,
+];
 
 type Lanes = Record<ChainSide, ChainItem[]>;
 
@@ -119,15 +122,6 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
    */
   const [lanes, setLanes] = useState<Lanes>({ left: chain, right: chainRight ?? [] });
   const draggingRef = useRef(false);
-  /**
-   * Set for one frame after a cross-lane move. dnd-kit fires another
-   * onDragOver as soon as the layout shifts, before it has re-measured, and
-   * with stale rects the nearest target can resolve back to the old lane,
-   * bouncing the item between lanes forever (React's "maximum update depth"
-   * crash). Cross-lane moves are skipped until the next animation frame,
-   * when the new measurements are in.
-   */
-  const justCrossedRef = useRef(false);
 
   // Resync the optimistic lanes only when native actually reports new state
   // (and no drag is in flight). `lanes` must NOT be a dependency here: an
@@ -136,16 +130,6 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
   useEffect(() => {
     if (!draggingRef.current) setLanes({ left: chain, right: chainRight ?? [] });
   }, [chain, chainRight]);
-
-  const sensors = useSensors(
-    // A few px of travel before a drag engages: plain clicks (open detail,
-    // tile buttons) stay clicks. GalleryPointerSensor also ignores presses
-    // on interactive chrome so power/swap/trash stay clicks.
-    useSensor(GalleryPointerSensor, {
-      activationConstraint: { distance: GALLERY_DRAG_DISTANCE_PX },
-    }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
 
   /** Lane containing the id in the optimistic local state. */
   const laneOf = (id: string): ChainSide | null => {
@@ -207,28 +191,31 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDrag]);
 
-  const handleDragStart = (event: DragStartEvent) => {
+  const handleDragStart = (event: DragStartEvent, manager: DragDropManager) => {
     draggingRef.current = true;
-    const id = String(event.active.id);
+    const id = String(event.operation.source?.id);
     setActiveDrag([...lanes.left, ...lanes.right].find((i) => i.blockId === id) ?? null);
     // Seed from the press that started the drag; the tracker effect keeps it
     // live from here (and inserts the stand-in once activeDrag lands).
-    altDragRef.current = (event.activatorEvent as PointerEvent | null)?.altKey === true;
+    const activator = manager.dragOperation.activatorEvent;
+    altDragRef.current = activator instanceof PointerEvent && activator.altKey;
   };
 
-  // Live cross-lane reflow: as the pointer crosses into the other lane, move
+  // Live cross-lane reflow: as the drag crosses into the other lane, move
   // the dragged item into it so that lane parts to make room, exactly like a
-  // same-lane sort. Which side of the hovered tile it lands on follows the
-  // dragged tile's center.
-  const handleDragOver = (event: DragOverEvent) => {
-    const { active, over } = event;
-    if (!over) return;
-    const activeId = String(active.id);
-    const overId = String(over.id);
+  // same-lane sort. Handled here (with the default optimistic cross-group
+  // move suppressed) because the built-in resolves before/after with
+  // vertical-list math; these lanes are horizontal, so which side of the
+  // hovered tile the block lands on must follow the dragged tile's center x.
+  // Same-lane sorting stays with the built-in OptimisticSortingPlugin.
+  const handleDragOver = (event: DragOverEvent, manager: DragDropManager) => {
+    const { source, target } = event.operation;
+    if (!source || !target) return;
+    const activeId = String(source.id);
     const from = laneOf(activeId);
-    const to = laneOf(overId);
+    const to = laneOf(String(target.id));
     if (!from || !to || from === to) return;
-    if (justCrossedRef.current) return;
+    event.preventDefault();
 
     // Insert slots are lane anchors and stay put.
     const item = lanes[from].find((i) => i.blockId === activeId);
@@ -236,23 +223,25 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
 
     // Land after the hovered tile when the dragged tile's center has passed
     // the hovered tile's center.
-    const activeRect = active.rect.current.translated;
+    const dragged = manager.dragOperation.shape?.current.center;
     const landAfter =
-      activeRect != null &&
-      activeRect.left + activeRect.width / 2 > over.rect.left + over.rect.width / 2;
+      dragged != null && target.shape != null && dragged.x > target.shape.center.x;
 
-    justCrossedRef.current = true;
-    // Clear the guard once dnd-kit has re-measured the shifted layout.
-    requestAnimationFrame(() => {
-      justCrossedRef.current = false;
-    });
     setLanes((prev) => {
       const fromItems = prev[from].filter((i) => i.blockId !== activeId);
       const toItems = [...prev[to]];
-      const overIndex = toItems.findIndex((i) => i.blockId === overId);
+      const overIndex = toItems.findIndex((i) => i.blockId === String(target.id));
       const insertIndex = overIndex === -1 ? toItems.length : overIndex + (landAfter ? 1 : 0);
       toItems.splice(insertIndex, 0, item);
       return { ...prev, [from]: fromItems, [to]: toItems };
+    });
+    // Same stabilization OptimisticSortingPlugin applies after its own moves:
+    // park the drop target on the source and hold collision detection until
+    // the reflowed layout has rendered, so stale rects can't bounce the item
+    // straight back across the lanes.
+    manager.collisionObserver.disable();
+    void manager.actions.setDropTarget(source.id).then(() => {
+      manager.collisionObserver.enable();
     });
   };
 
@@ -261,23 +250,23 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
     setActiveDrag(null);
     const duplicating = altDragRef.current;
     altDragRef.current = false;
-    const { active, over } = event;
-    if (!over) {
+    const { source, target } = event.operation;
+    if (event.canceled || !target || !isSortable(source)) {
       resetLanes();
       return;
     }
 
-    const activeId = String(active.id);
-    const overId = String(over.id);
+    const activeId = String(source.id);
     const side = laneOf(activeId);
     if (!side) return;
 
-    // Final same-lane placement (cross-lane moves already happened in
-    // onDragOver, so active and over share a lane by now).
+    // Final same-lane placement: cross-lane moves already landed in
+    // onDragOver, and source.index is the optimistic index the drag settled
+    // on (the sortable plugin keeps it live during the gesture).
     let laneItems = lanes[side];
     const oldIndex = laneItems.findIndex((i) => i.blockId === activeId);
-    const newIndex = laneItems.findIndex((i) => i.blockId === overId);
-    if (oldIndex !== -1 && newIndex !== -1 && oldIndex !== newIndex) {
+    const newIndex = Math.min(source.index, laneItems.length - 1);
+    if (oldIndex !== -1 && oldIndex !== newIndex) {
       laneItems = arrayMove(laneItems, oldIndex, newIndex);
       setLanes((prev) => ({ ...prev, [side]: laneItems }));
     }
@@ -303,13 +292,6 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
     const nativeIds = (side === 'left' ? chain : (chainRight ?? [])).map((i) => i.blockId);
     const localIds = laneItems.map((i) => i.blockId);
     if (nativeIds.join() !== localIds.join()) actions.reorderBlocks(localIds);
-  };
-
-  const handleDragCancel = () => {
-    draggingRef.current = false;
-    altDragRef.current = false;
-    setActiveDrag(null);
-    resetLanes();
   };
 
   // Resolve the detail block across both lanes; it can disappear underneath
@@ -435,13 +417,11 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
       }}
     >
       {stereo && <StereoPanRail />}
-      <DndContext
+      <DragDropProvider
         sensors={sensors}
-        collisionDetection={galleryCollisionDetection}
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
       >
         {/* One shared scroll area: both lanes pan together, fading out under
             the edge gradients as they scroll. */}
@@ -492,11 +472,12 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
                 minWidth: '100%',
                 padding: `0 ${EDGE_FADE_WIDTH}px`,
                 boxSizing: 'border-box',
-                // Vertical centering can leave the content on a half-pixel
-                // boundary; keeping it on its own composited layer snaps it
-                // to the pixel grid once, so tiles can't shift ~1px when a
-                // drag or opacity fade promotes them to their own layers.
-                transform: 'translateZ(0)',
+                // No transform on this wrapper: a transformed ancestor becomes
+                // the containing block for position:fixed descendants, and
+                // dnd-kit positions the dragged tile in fixed viewport
+                // coordinates. In webviews without top-layer (popover)
+                // promotion the tile would render offset by this box's origin,
+                // a big down-right jump at pickup in DAW hosts.
               }}
             >
               {lane('left')}
@@ -513,13 +494,7 @@ export const ChainView: React.FC<ChainViewProps> = ({ chain, chainRight, branch,
           <EdgeFade side="left" />
           <EdgeFade side="right" />
         </div>
-        {/* No drop animation: the default one measures the original element
-            before the optimistic lane commit paints, so the ghost would fly
-            back to the old slot before the tile appears at the new one. */}
-        <DragOverlay dropAnimation={null}>
-          {activeDrag && <GalleryTileGhost item={activeDrag} size={tileSize} />}
-        </DragOverlay>
-      </DndContext>
+      </DragDropProvider>
     </div>
   );
 };

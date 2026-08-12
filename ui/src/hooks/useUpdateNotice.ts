@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { UPDATE_CHECK_URL, UPDATE_NOTICE_ENABLED } from '../t3k/config';
+import { isNativeFunctionRegistered } from '../backend/JuceBackend';
 import { useAudioBackend } from './useAudioBackend';
 
 /**
@@ -67,16 +68,6 @@ export function compareVersions(a: string, b: string): number {
     if (diff !== 0) return diff;
   }
   return 0;
-}
-
-/** True when the native side registered the function (false in dev browser). */
-function isNativeFunctionRegistered(name: string): boolean {
-  const juce = (
-    window as unknown as {
-      __JUCE__?: { initialisationData?: { __juce__functions?: string[] } };
-    }
-  ).__JUCE__;
-  return juce?.initialisationData?.__juce__functions?.includes(name) ?? false;
 }
 
 export function useUpdateNotice(): {

@@ -604,6 +604,35 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             juce::SystemClipboard::copyTextToClipboard(args[0].toString());
             return juce::var(true);
           }))
+#if JUCE_MAC || JUCE_WINDOWS
+      .withNativeFunction(
+          // Jump to the OS clock settings from the secure-connection modal
+          // (a wrong system clock is the usual reason HTTPS to tone3000.com
+          // fails). Process::openDocument routes settings URIs to
+          // NSWorkspace/ShellExecute. Not registered on Linux (no reliable
+          // settings URI across desktops); the UI hides the button then.
+          "openDateTimeSettings", guarded(0, false, [](const juce::Array<juce::var>&) {
+  #if JUCE_MAC
+            // Ventura+ pane id; older systems fall back to the settings root.
+            return juce::var(juce::Process::openDocument(
+                "x-apple.systempreferences:com.apple.Date-Time-Settings.extension", {}));
+  #else
+            return juce::var(juce::Process::openDocument("ms-settings:dateandtime", {}));
+  #endif
+          }))
+#endif
+      .withNativeFunction(
+          // Hand a Space press the UI has no use for to the host DAW, whose
+          // play/stop shortcut it almost certainly is (see WindowKeyEvents.mm
+          // / .cpp). No-op in Standalone, where there is no transport to
+          // reach; the UI still suppresses the key so it can't beep or scroll.
+          "forwardSpaceToHost", guarded(0, false, [editor](const juce::Array<juce::var>&) {
+            if (juce::JUCEApplicationBase::isStandaloneApp())
+              return juce::var(false);
+            if (auto* peer = editor->getPeer())
+              forwardSpaceKeyToHost(peer->getNativeHandle());
+            return juce::var(true);
+          }))
       .withNativeFunction(
           // Console output forwarded from the WebView so it lands in the
           // on-disk log even in release builds (where the Web Inspector is

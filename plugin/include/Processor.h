@@ -256,7 +256,11 @@ public:
   // just the hint bar. Persisted like editorScale so the next editor opens at
   // the height the UI's first paint will actually need, instead of growing a
   // beat after launch. Dynamic strips (the standalone banner) are excluded.
-  std::atomic<int> editorExtraHeight{0};
+  // Default 36 = the hint bar, which the UI shows by default: a fresh insert
+  // then opens at its final height and never asks the host to resize. Some
+  // hosts (LUNA) grant a post-open grow without re-laying-out their own
+  // plugin-window chrome, which visibly misplaces it.
+  std::atomic<int> editorExtraHeight{36};
 
   // Which lane loadTone falls back to ("left"/"right") when no valid target
   // insert id is supplied. The UI sets this before launching the Select flow

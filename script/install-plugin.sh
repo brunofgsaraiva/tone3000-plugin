@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Copy a built plugin into the user's plugin folder.
+# Copy a built plugin into the folder DAWs actually scan (system-wide on
+# macOS, matching the .pkg installer; user-local on Linux).
 #
 #   ./script/install-plugin.sh VST3 [Debug|Release]
 #   ./script/install-plugin.sh AU   [Debug|Release]
@@ -22,7 +23,9 @@ case "$format" in
   VST3)
     bundle="TONE3000.vst3"
     case "$os" in
-      Darwin) dest_dir="$HOME/Library/Audio/Plug-Ins/VST3" ;;
+      # System-wide folder, same as the .pkg: some hosts (LUNA) only scan
+      # /Library for VST3 and ignore ~/Library entirely.
+      Darwin) dest_dir="/Library/Audio/Plug-Ins/VST3" ;;
       Linux)  dest_dir="$HOME/.vst3" ;;
       *) echo "Unsupported OS for this script: $os" >&2; exit 1 ;;
     esac
@@ -33,7 +36,9 @@ case "$format" in
       echo "AU is macOS only (detected $os)" >&2
       exit 1
     fi
-    dest_dir="$HOME/Library/Audio/Plug-Ins/Components"
+    # System-wide folder, same as the .pkg, so a dev install always replaces
+    # the pkg copy instead of registering a same-version twin next to it.
+    dest_dir="/Library/Audio/Plug-Ins/Components"
     ;;
   AAX)
     bundle="TONE3000.aaxplugin"
