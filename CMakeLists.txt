@@ -406,7 +406,7 @@ endif()
 # TONE3000.settings loose into the shared config root (~/.config on Linux,
 # ~/Library/Application Support on macOS; Windows already resolves to
 # %APPDATA%/TONE3000 and is unchanged). Linux resolves through
-# userApplicationDataDirectory so XDG_CONFIG_HOME is honoured — the same root
+# userApplicationDataDirectory so XDG_CONFIG_HOME is honoured, the same root
 # as presets, logs and the WebKit storage. The processor's own machine-wide
 # store in the same folder is named preferences.settings (see
 # ProcessorState.cpp), so the two files cannot collide. Idempotent

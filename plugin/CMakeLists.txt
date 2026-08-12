@@ -316,7 +316,7 @@ endif()
 # Linux: stay on the classic core-X11 input path. JUCE 9 rewrote Linux input
 # around XInput2 (per-window XI2 registration, core ButtonPress/Motion events
 # discarded when XI2 >= 2.2 is present, which is every modern system). A missed
-# or racing XI2 registration leaves a window rendering but mouse-dead — seen
+# or racing XI2 registration leaves a window rendering but mouse-dead, seen
 # intermittently in the JUCE 9 standalone on Linux (resolved by relaunch). The
 # only feature XInput2 buys is multitouch, which this plugin doesn't use, so
 # disable the whole path and keep the battle-tested JUCE 8 behavior.

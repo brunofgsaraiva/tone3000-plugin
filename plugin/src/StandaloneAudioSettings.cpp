@@ -306,7 +306,7 @@ juce::var StandaloneAudioSettings::setDevice(const juce::String& kind,
 // request. JUCE's setAudioDeviceSetup re-derives channel masks whenever the
 // matching useDefault*Channels flag is raised (updateSetupChannels: clear the
 // mask, enable the first two channels), and that flag can be raised behind
-// our back — JUCE 9's audioDeviceListChanged re-initialise paths, or our own
+// our back: JUCE 9's audioDeviceListChanged re-initialise paths, or our own
 // device pick before the remembered/preferred pass lands. Without pinning, a
 // rate- or buffer-only change could silently reset a mono input selection
 // back to stereo (seen on Linux/ALSA where device-list churn makes those

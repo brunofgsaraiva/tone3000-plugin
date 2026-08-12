@@ -242,9 +242,9 @@ void TONE3000Processor::setStateInformation(const void* data, int sizeInBytes) {
   midiMapper.restoreFromValueTree(state.getChildWithName("MidiMappings"));
 
   // Per-instance NAM A2 size; older projects restore as lite (the default).
-  // Stored before the chain restore so the background model loads it kicks
-  // off prepare at the restored tier; engines the reconcile keeps (loaded at
-  // the previous tier) are retiered under the lock below.
+  // Stored before the chain restore so the background model loads that it
+  // kicks off prepare at the restored tier; engines the reconcile keeps
+  // (loaded at the previous tier) are retiered under the lock below.
   const bool restoredNamFullSize =
       static_cast<bool>(state.getProperty("namFullSize", false));
   const bool namTierChanged = namFullSize.load() != restoredNamFullSize;

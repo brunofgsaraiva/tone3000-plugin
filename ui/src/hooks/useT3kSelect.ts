@@ -175,6 +175,24 @@ export const useT3kSelect = ({
     window.history.replaceState({}, '', cleaned.toString());
   }, []);
 
+  // Backing out of tone3000.com with browser navigation (back gesture, mouse
+  // back button, Alt+Left) instead of the menubar X never produces the
+  // `canceled=true` redirect. Instead the webview restores this page from the
+  // back/forward cache with all React state intact including a 'leaving'
+  // (or interrupted 'returning') phase so the busy overlay would hang
+  // forever. A bfcache restore always fires `pageshow` with `persisted`;
+  // treat it as a cancel. ('error' keeps its retry/dismiss buttons, and a
+  // non-cached back navigation reloads the page, which mounts as 'idle' on
+  // its own.)
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return;
+      setOauthPhase((phase) => (phase === 'leaving' || phase === 'returning' ? 'idle' : phase));
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, []);
+
   const processedCallbackRef = useRef(false);
   useEffect(() => {
     if (processedCallbackRef.current) return;
