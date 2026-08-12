@@ -133,6 +133,7 @@ void StandaloneAudioSettings::changeListenerCallback(juce::ChangeBroadcaster*) {
   // Fires for every device-manager change: our own setters, hot-plugs,
   // devices vanishing mid-session, vendor control panel edits. Re-run the
   // sync policies, then push the UI to re-pull state.
+  logSetup("change");
   ensureInitialPolicies();
   applyMonitoringPolicy();
   if (onDeviceStateChanged)
@@ -257,6 +258,7 @@ juce::var StandaloneAudioSettings::setDeviceType(const juce::String& typeName) {
   if (dm == nullptr)
     return makeResult("Audio settings are unavailable.");
 
+  logSetup("setDeviceType " + typeName);
   dm->setCurrentAudioDeviceType(typeName, true);
   if (dm->getCurrentAudioDeviceType() != typeName)
     return makeResult("Couldn't switch to " + typeName + ".");
@@ -273,6 +275,7 @@ juce::var StandaloneAudioSettings::setDevice(const juce::String& kind,
   if (dm == nullptr)
     return makeResult("Audio settings are unavailable.");
 
+  logSetup("setDevice " + kind + " \"" + name + "\"");
   auto setup = dm->getAudioDeviceSetup();
 
   if (kind == "linked") {
@@ -346,6 +349,7 @@ juce::var StandaloneAudioSettings::setInputChannels(
   if (count < 1 || count > kMaxActiveInputChannels)
     return makeResult("Select one (mono) or two (stereo) input channels.");
 
+  logSetup("setInputChannels " + mask.toString(2));
   auto setup = dm->getAudioDeviceSetup();
   setup.useDefaultInputChannels = false;
   setup.inputChannels = mask;
@@ -369,6 +373,7 @@ juce::var StandaloneAudioSettings::setOutputPair(int pairIndex) {
   if (firstBit + 1 < numChannels)
     mask.setBit(firstBit + 1);
 
+  logSetup("setOutputPair " + juce::String(pairIndex));
   auto setup = dm->getAudioDeviceSetup();
   setup.useDefaultOutputChannels = false;
   setup.outputChannels = mask;
@@ -380,6 +385,7 @@ juce::var StandaloneAudioSettings::setSampleRate(double rate) {
   auto* dm = deviceManager();
   if (dm == nullptr)
     return makeResult("Audio settings are unavailable.");
+  logSetup("setSampleRate " + juce::String(rate));
   auto setup = dm->getAudioDeviceSetup();
   setup.sampleRate = rate;
   pinActiveChannels(setup, dm->getCurrentAudioDevice(), /*pinInputs=*/true, /*pinOutputs=*/true);
@@ -390,6 +396,7 @@ juce::var StandaloneAudioSettings::setBufferSize(int samples) {
   auto* dm = deviceManager();
   if (dm == nullptr)
     return makeResult("Audio settings are unavailable.");
+  logSetup("setBufferSize " + juce::String(samples));
   auto setup = dm->getAudioDeviceSetup();
   setup.bufferSize = samples;
   pinActiveChannels(setup, dm->getCurrentAudioDevice(), /*pinInputs=*/true, /*pinOutputs=*/true);
@@ -446,6 +453,7 @@ juce::var StandaloneAudioSettings::restartDevice() {
   auto* dm = deviceManager();
   if (dm == nullptr)
     return makeResult("Audio settings are unavailable.");
+  logSetup("restartDevice");
   dm->closeAudioDevice();
   dm->restartLastAudioDevice();
   const bool reopened = dm->getCurrentAudioDevice() != nullptr;
@@ -579,7 +587,24 @@ void StandaloneAudioSettings::ensureInitialPolicies() {
       p->setValue(kPoliciesAppliedKey, true);
   }
 
-  rememberCurrentSetup();  // whatever we're running now is this device's saved setup
+  // Boot reconciliation. JUCE's own XML restore can come up with the wrong
+  // channels (updateXml skips the channel masks whenever the useDefault*
+  // flags were up when it last ran, and a restore from such an XML defaults
+  // to stereo), so a remembered setup for this device pair is re-asserted
+  // rather than clobbered with whatever booted. setAudioDeviceSetup is a
+  // no-op when nothing differs, so the common path costs nothing. Only when
+  // this device pair has never been seen do we record the boot state as its
+  // baseline.
+  logSetup("boot");
+  const auto saved = getRememberedSetups().getProperty(currentSetupKey(), {});
+  if (saved.isObject()) {
+    juce::Logger::writeToLog("[AudioSettings] boot: re-asserting remembered setup " +
+                             juce::JSON::toString(saved, true));
+    applyRememberedSetup(saved);
+  } else {
+    juce::Logger::writeToLog("[AudioSettings] boot: no remembered setup for this device pair");
+    rememberCurrentSetup();
+  }
   applyMonitoringPolicy();
 }
 
@@ -657,8 +682,10 @@ void StandaloneAudioSettings::applyPreferredSetup() {
     changed = true;
   }
 
-  if (changed)
+  if (changed) {
+    logSetup("applyPreferredSetup");
     dm->setAudioDeviceSetup(setup, true);
+  }
 }
 
 bool StandaloneAudioSettings::applyRememberedSetup(const juce::var& saved) {
@@ -696,6 +723,9 @@ bool StandaloneAudioSettings::applyRememberedSetup(const juce::var& saved) {
     setup.outputChannels = outMask;
   }
 
+  logSetup("applyRememberedSetup rate=" + juce::String(setup.sampleRate) +
+           " buf=" + juce::String(setup.bufferSize) + " in=" + setup.inputChannels.toString(2) +
+           " out=" + setup.outputChannels.toString(2));
   return dm->setAudioDeviceSetup(setup, true).isEmpty();
 }
 
@@ -706,16 +736,32 @@ void StandaloneAudioSettings::rememberCurrentSetup() {
   if (device == nullptr || p == nullptr)
     return;
 
+  // Channel masks: persist the user's *request* (the setup masks) whenever it
+  // is explicit, not the device readback. ALSA rounds a mono open up to the
+  // hardware's minimum channel count (getActiveInputChannels comes back
+  // stereo), so remembering the readback silently converts a saved mono
+  // selection into stereo. Rate/buffer stay readback values: those are what
+  // the device actually granted and are always safe to re-request.
+  const auto setup = dm->getAudioDeviceSetup();
+  const auto inMask = !setup.useDefaultInputChannels && !setup.inputChannels.isZero()
+                          ? setup.inputChannels
+                          : device->getActiveInputChannels();
+  const auto outMask = !setup.useDefaultOutputChannels && !setup.outputChannels.isZero()
+                           ? setup.outputChannels
+                           : device->getActiveOutputChannels();
+
   auto* entry = new juce::DynamicObject();
   entry->setProperty("rate", device->getCurrentSampleRate());
   entry->setProperty("buffer", device->getCurrentBufferSizeSamples());
-  entry->setProperty("in", device->getActiveInputChannels().toString(16));
-  entry->setProperty("out", device->getActiveOutputChannels().toString(16));
+  entry->setProperty("in", inMask.toString(16));
+  entry->setProperty("out", outMask.toString(16));
 
   auto remembered = getRememberedSetups();
   if (auto* obj = remembered.getDynamicObject())
     obj->setProperty(currentSetupKey(), juce::var(entry));
   p->setValue(kRememberedSetupsKey, juce::JSON::toString(remembered, true));
+  juce::Logger::writeToLog("[AudioSettings] remember \"" + currentSetupKey() +
+                           "\" = " + juce::JSON::toString(juce::var(entry), true));
 }
 
 void StandaloneAudioSettings::applyMonitoringPolicy() {
@@ -756,8 +802,47 @@ juce::var StandaloneAudioSettings::finishApply(const juce::String& error) {
   if (error.isEmpty()) {
     rememberCurrentSetup();
     applyMonitoringPolicy();
+  } else {
+    logSetup("apply failed: " + error);
   }
   return makeResult(error);
+}
+
+void StandaloneAudioSettings::logSetup(const juce::String& tag) {
+  auto* dm = deviceManager();
+  if (dm == nullptr)
+    return;
+
+  const auto setup = dm->getAudioDeviceSetup();
+  auto* device = dm->getCurrentAudioDevice();
+
+  // Requested side (what we asked for) and readback side (what the device is
+  // actually running) on one line; a mismatch between the two is exactly the
+  // evidence needed for the Linux mono->stereo reports.
+  juce::String snapshot;
+  snapshot << "type=" << dm->getCurrentAudioDeviceType() << " in=\"" << setup.inputDeviceName
+           << "\" out=\"" << setup.outputDeviceName << "\" req[rate=" << setup.sampleRate
+           << " buf=" << setup.bufferSize << " inMask=" << setup.inputChannels.toString(2)
+           << (setup.useDefaultInputChannels ? "*" : "")
+           << " outMask=" << setup.outputChannels.toString(2)
+           << (setup.useDefaultOutputChannels ? "*" : "") << "]";
+  if (device != nullptr)
+    snapshot << " dev[rate=" << device->getCurrentSampleRate()
+             << " buf=" << device->getCurrentBufferSizeSamples()
+             << " inActive=" << device->getActiveInputChannels().toString(2)
+             << " outActive=" << device->getActiveOutputChannels().toString(2) << "]";
+  else
+    snapshot << " dev[none]";
+
+  // Change callbacks re-log the same state repeatedly; only the transitions
+  // are interesting. Explicit action tags always log so the sequence of user
+  // actions stays visible even when a setter ends up being a no-op.
+  const bool isChangeCallback = tag == "change";
+  if (isChangeCallback && snapshot == lastLoggedSetup)
+    return;
+  lastLoggedSetup = snapshot;
+
+  juce::Logger::writeToLog("[AudioSettings] " + tag + ": " + snapshot);
 }
 
 //==============================================================================
