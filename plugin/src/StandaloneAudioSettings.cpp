@@ -302,6 +302,31 @@ juce::var StandaloneAudioSettings::setDevice(const juce::String& kind,
   return finishApply(error);
 }
 
+// Pin the device's currently-active channels into the setup as an explicit
+// request. JUCE's setAudioDeviceSetup re-derives channel masks whenever the
+// matching useDefault*Channels flag is raised (updateSetupChannels: clear the
+// mask, enable the first two channels), and that flag can be raised behind
+// our back — JUCE 9's audioDeviceListChanged re-initialise paths, or our own
+// device pick before the remembered/preferred pass lands. Without pinning, a
+// rate- or buffer-only change could silently reset a mono input selection
+// back to stereo (seen on Linux/ALSA where device-list churn makes those
+// re-initialise paths run mid-session).
+static void pinActiveChannels(juce::AudioDeviceManager::AudioDeviceSetup& setup,
+                              const juce::AudioIODevice* device,
+                              bool pinInputs,
+                              bool pinOutputs) {
+  if (device == nullptr)
+    return;
+  if (pinInputs) {
+    setup.useDefaultInputChannels = false;
+    setup.inputChannels = device->getActiveInputChannels();
+  }
+  if (pinOutputs) {
+    setup.useDefaultOutputChannels = false;
+    setup.outputChannels = device->getActiveOutputChannels();
+  }
+}
+
 juce::var StandaloneAudioSettings::setInputChannels(
     const juce::Array<juce::var>& channelIndices) {
   auto* dm = deviceManager();
@@ -324,6 +349,7 @@ juce::var StandaloneAudioSettings::setInputChannels(
   auto setup = dm->getAudioDeviceSetup();
   setup.useDefaultInputChannels = false;
   setup.inputChannels = mask;
+  pinActiveChannels(setup, device, /*pinInputs=*/false, /*pinOutputs=*/true);
   return finishApply(dm->setAudioDeviceSetup(setup, true));
 }
 
@@ -346,6 +372,7 @@ juce::var StandaloneAudioSettings::setOutputPair(int pairIndex) {
   auto setup = dm->getAudioDeviceSetup();
   setup.useDefaultOutputChannels = false;
   setup.outputChannels = mask;
+  pinActiveChannels(setup, device, /*pinInputs=*/true, /*pinOutputs=*/false);
   return finishApply(dm->setAudioDeviceSetup(setup, true));
 }
 
@@ -355,6 +382,7 @@ juce::var StandaloneAudioSettings::setSampleRate(double rate) {
     return makeResult("Audio settings are unavailable.");
   auto setup = dm->getAudioDeviceSetup();
   setup.sampleRate = rate;
+  pinActiveChannels(setup, dm->getCurrentAudioDevice(), /*pinInputs=*/true, /*pinOutputs=*/true);
   return finishApply(dm->setAudioDeviceSetup(setup, true));
 }
 
@@ -364,6 +392,7 @@ juce::var StandaloneAudioSettings::setBufferSize(int samples) {
     return makeResult("Audio settings are unavailable.");
   auto setup = dm->getAudioDeviceSetup();
   setup.bufferSize = samples;
+  pinActiveChannels(setup, dm->getCurrentAudioDevice(), /*pinInputs=*/true, /*pinOutputs=*/true);
   return finishApply(dm->setAudioDeviceSetup(setup, true));
 }
 
