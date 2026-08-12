@@ -1028,8 +1028,9 @@ juce::var TONE3000Processor::getChainState(int knownRevision) const {
   // True in the standalone app; gates standalone-only settings.
   state->setProperty("standalone", isStandalone());
   state->setProperty("inputMode", inputModeToString(getInputMode()));
-  // The machine-wide settings ride this payload because they change together
-  // with a revision bump, like everything else Settings displays.
+  // These settings (namFullSize per-instance, multiCore machine-wide) ride
+  // this payload because they change together with a revision bump, like
+  // everything else Settings displays.
   state->setProperty("namFullSize", namFullSize.load());
   state->setProperty("multiCore", multiCoreEnabled.load());
   // The EQ editor mirrors the biquad math client-side; block EQs run in the

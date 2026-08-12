@@ -42,8 +42,7 @@ TONE3000Processor::TONE3000Processor()
   juce::Logger::writeToLog(
       "[Processor] Settings file: " + getSettingsFile().getFullPathName() +
       " (exists=" + juce::String(getSettingsFile().existsAsFile() ? "yes" : "no") +
-      ") | namFullSize=" + juce::String(namFullSize.load() ? "full" : "lite") +
-      " multiCore=" + juce::String(multiCoreEnabled.load() ? "on" : "off"));
+      ") | multiCore=" + juce::String(multiCoreEnabled.load() ? "on" : "off"));
 
   resolveParamRefs();
 

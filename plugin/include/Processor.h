@@ -151,12 +151,12 @@ public:
   // deferredRevisionBump) so drag-rate calls never force full chain resyncs.
   bool setBlockParam(const std::string& blockId, const juce::String& param, double value);
 
-  // Global NAM A2 size (machine-wide user setting).
-  // One tier for every A2 NAM block: false = lite, true = full. Deliberately
-  // NOT part of chains/presets/undo: it describes the user's machine (CPU
-  // budget), not the tone, so it persists in the shared TONE3000 settings
-  // file and applies across every instance's loads. Setting it retiers all
-  // loaded NAM engines in place (under the chain-edit fade) and bumps the
+  // NAM A2 size (per-instance session setting).
+  // One tier for every A2 NAM block in this instance: false = lite (default),
+  // true = full. It's a CPU/quality budget, not part of the tone, so it rides
+  // getStateInformation with the other session-only settings (saves with the
+  // DAW project) and deliberately NOT chains/presets/undo. Setting it retiers
+  // all loaded NAM engines in place (under the chain-edit fade) and bumps the
   // chain revision so the UI resyncs.
   bool getNamFullSize() const { return namFullSize.load(); }
   void setNamFullSize(bool full);
@@ -167,7 +167,7 @@ public:
       waiter runs on) block until the rig is actually audible again. */
   bool isChainEditFadeHeld() const { return chainEditFadePending.load(); }
 
-  // Multi-core stereo (machine-wide user setting, like the NAM A2 size).
+  // Multi-core stereo (machine-wide user setting).
   // When on, stereo mode processes the two chain lanes concurrently: the
   // Right lane (or the branch lane when branched) runs on the LaneWorker
   // realtime thread while the audio thread processes the other. Off = the
@@ -330,8 +330,8 @@ public:
   // macOS: ~/Library/Logs/TONE3000/TONE3000.log, Windows: %APPDATA%/TONE3000/TONE3000.log
   static juce::File getLogFile();
 
-  // Location of the shared machine-wide settings file (NAM A2 size,
-  // multi-core preference). Logged once at startup (see the constructor) so
+  // Location of the shared machine-wide settings file (the multi-core
+  // preference). Logged once at startup (see the constructor) so
   // a "settings don't persist" report can be diagnosed straight from the
   // log instead of guessed at.
   static juce::File getSettingsFile();
@@ -394,7 +394,7 @@ private:
   };
 
   /** CPU/file heavy; call without holding `chainMutex`. NAM engines come out
-      at the current global A2 tier (see setNamFullSize). */
+      at the instance's current A2 tier (see setNamFullSize). */
   PreparedBlockModel prepareBlockModelOffThread(ChainBlockType type, const std::vector<uint8_t>& modelData,
                                                 const juce::String& filename);
   /** Short path under `chainMutex` only: swaps the new engines onto `block`
@@ -855,16 +855,14 @@ private:
   std::array<juce::AudioBuffer<float>, kNumLanes> laneDryScratch;
   double hostSampleRate = 48000.0;  // Default, updated dynamically in prepareToPlay
 
-  // Global NAM A2 size (see setNamFullSize).
-  // Seeded from the shared settings file at construction so DSP restores at
-  // the right tier even before any editor opens; other instances pick up a
-  // change on their next launch. Atomic: written on the message thread, read
-  // by loader threads when a model prepares.
-  static bool readPersistedNamFullSize();
+  // NAM A2 size (see setNamFullSize). Per-instance: defaults to lite and is
+  // overwritten by setStateInformation when the host restores a project.
+  // Atomic: written on the message thread, read by loader threads when a
+  // model prepares.
   /** The preference as the size NamEngine::setSlimmableSize expects
       (0.0 = lite, 1.0 = full; the tier boundary at 0.5 belongs to full). */
   double namSlimmableSizeValue() const { return namFullSize.load() ? 1.0 : 0.0; }
-  std::atomic<bool> namFullSize{readPersistedNamFullSize()};
+  std::atomic<bool> namFullSize{false};
 
   // Audio-callback load (timed around processBlock); ships to the UI as the
   // `cpu` field of getMeterLevels for the hint-bar readout.

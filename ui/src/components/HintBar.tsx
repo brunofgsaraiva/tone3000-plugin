@@ -14,13 +14,13 @@ import {
 export const HINT_HEIGHT = 36;
 
 interface HintBarProps {
-  /** Global NAM A2 size (false = lite, true = full); see useChainState. */
+  /** NAM A2 size (per-instance; false = lite, true = full); see useChainState. */
   namFullSize: boolean;
   onNamFullSizeChange: (full: boolean) => void;
 }
 
 /** Secondary home of the NAM A2 size setting (the primary lives in Plugin
-    Settings): one LITE/FULL preference for every NAM block. */
+    Settings): one LITE/FULL choice for every NAM block in this instance. */
 const NamSizeToggle: React.FC<HintBarProps> = ({ namFullSize, onNamFullSizeChange }) => (
   <div {...helpProps(HELP.namSize)} style={segmentedGroupStyle()}>
     {([false, true] as const).map((full) => (

@@ -240,7 +240,7 @@ export const HELP = {
   clipDot: 'Clip: latches on clipping. Click: clear.',
 
   // The hint bar itself
-  namSize: 'NAM Size: LITE saves CPU · FULL is highest quality. Applies to all NAM tones.',
+  namSize: 'NAM Size: LITE saves CPU · FULL is highest quality. Applies to all NAM tones in this instance.',
   cpuLoad: 'CPU: audio engine load.',
   hideHints: 'Hide Info Bar: hide this bar. Re-enable in Settings.',
 } as const;

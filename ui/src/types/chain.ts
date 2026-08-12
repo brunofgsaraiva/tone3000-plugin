@@ -218,8 +218,9 @@ export interface ChainState {
   /** Which channels of a stereo source feed the plugin (faceplate button):
       both, or one mirrored onto both. */
   inputMode: InputMode;
-  /** Global NAM A2 size (machine-wide user setting; false = lite, true =
-      full). Applies to every NAM block; set via `setNamFullSize`. */
+  /** NAM A2 size (per-instance, saved with the DAW session; false = lite,
+      true = full). Applies to every NAM block in this instance; set via
+      `setNamFullSize`. */
   namFullSize: boolean;
   /** Multi-core stereo (machine-wide user setting). When true, stereo mode
       processes the two chains on separate CPU cores; set via `setMultiCore`. */

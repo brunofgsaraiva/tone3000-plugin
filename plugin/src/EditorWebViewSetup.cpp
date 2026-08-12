@@ -265,10 +265,10 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             return juce::var(true);
           }))
       .withNativeFunction(
-          // Machine-wide NAM A2 size (false = lite, true = full). Retiers
-          // every loaded NAM block immediately and persists in the shared
-          // settings file; the current value rides getChainState as
-          // `namFullSize`.
+          // Per-instance NAM A2 size (false = lite, true = full). Retiers
+          // every loaded NAM block immediately and saves with the DAW
+          // project (session state, not presets); the current value rides
+          // getChainState as `namFullSize`.
           "setNamFullSize", guarded(1, false, [editor](const juce::Array<juce::var>& args) {
             editor->processor.setNamFullSize(coerceBool(args[0]));
             return juce::var(true);

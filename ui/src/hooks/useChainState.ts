@@ -175,8 +175,8 @@ export function useChainState() {
         run('setStereoMode', () => native.setStereoMode(enabled)),
       /** Which channels of a stereo source feed the plugin (faceplate button). */
       setInputMode: (mode: InputMode) => run('setInputMode', () => native.setInputMode(mode)),
-      /** Global NAM A2 size (machine-wide; false = lite, true = full).
-          Retiers every loaded NAM block natively and persists on disk. */
+      /** NAM A2 size (per-instance; false = lite, true = full). Retiers
+          every loaded NAM block natively; saves with the DAW session. */
       setNamFullSize: (full: boolean) =>
         run('setNamFullSize', () => native.setNamFullSize(full)),
       /** Multi-core stereo (machine-wide). Pure scheduling: applies

@@ -76,8 +76,9 @@ const OS_FACTOR_OPTIONS: { value: '0' | '1' | '2'; label: string }[] = [
   { value: '2', label: '8X' },
 ];
 
-// NAM A2 size: one tier for every NAM block. The info bar carries a
-// secondary LITE/FULL toggle for the same setting.
+// NAM A2 size: one tier for every NAM block in this plugin instance (saved
+// with the DAW session, not presets). The info bar carries a secondary
+// LITE/FULL toggle for the same setting.
 const NAM_A2_SIZE_OPTIONS: { full: boolean; label: string; description: string }[] = [
   { full: false, label: 'A2-Lite', description: 'Sounds great and uses less CPU' },
   { full: true, label: 'A2-Full', description: 'Maximum accuracy model' },
@@ -240,7 +241,8 @@ export const Settings: React.FC<SettingsProps> = ({
       >
         <span style={sectionLabelStyle}>NAM A2 Size</span>
         <p style={{ ...descriptionStyle, marginBottom: '18px' }}>
-          Applies to every NAM tone; also switchable from LITE/FULL in the info bar.
+          Applies to every NAM tone in this plugin instance and saves with your
+          session; also switchable from LITE/FULL in the info bar.
         </p>
         {NAM_A2_SIZE_OPTIONS.map((option) => (
           <RadioOption

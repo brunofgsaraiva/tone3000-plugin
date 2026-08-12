@@ -531,7 +531,8 @@ TONE3000Processor::PreparedBlockModel TONE3000Processor::prepareBlockModelOffThr
             " Hz; the chain runs at " + juce::String(chainSampleRate()) + " Hz regardless");
       }
 
-      // Global A2 tier (no-op for non-slimmable models); prepare() applies it.
+      // The instance's A2 tier (no-op for non-slimmable models); prepare()
+      // applies it.
       engine->setSlimmableSize(namSlimmableSizeValue());
       engine->prepare(domainBlockSize);
 
@@ -922,8 +923,8 @@ void TONE3000Processor::applyPreparedModelToChainBlock(ChainBlock& block, ChainB
     block.irIsLong = false;
     block.irTempFile = juce::File();
 
-    // Re-apply the global A2 tier in case the preference changed while this
-    // engine was downloading/preparing (no-op for non-slimmable models).
+    // Re-apply the instance's A2 tier in case it changed while this engine
+    // was downloading/preparing (no-op for non-slimmable models).
     block.namEngine->setSlimmableSize(namSlimmableSizeValue());
 
     block.namNormalizationSmoother.reset(chainSampleRate(), 0.05f);
