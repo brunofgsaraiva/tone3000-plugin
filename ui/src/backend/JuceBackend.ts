@@ -1,4 +1,4 @@
-import * as Juce from 'juce-framework-frontend';
+import * as Juce from '@juce-framework/webview';
 import type {
   IAudioBackend,
   ParameterType,
@@ -7,6 +7,12 @@ import type {
   ToggleParameter,
   ComboBoxParameter,
 } from '../types/IAudioBackend';
+
+// The JUCE package exports the state classes only through their getters, so
+// derive the types from those.
+type SliderState = ReturnType<typeof Juce.getSliderState>;
+type ToggleState = ReturnType<typeof Juce.getToggleState>;
+type ComboBoxState = ReturnType<typeof Juce.getComboBoxState>;
 
 /** The raw event bus JUCE injects at `window.__JUCE__.backend`. */
 type RawJuceBackend = {
@@ -66,7 +72,7 @@ function requestInitialUpdate(state: { identifier: string }): void {
   rawJuceBackend()?.emitEvent(state.identifier, { eventType: 'requestInitialUpdate' });
 }
 
-type JuceControlState = Juce.SliderState | Juce.ToggleState | Juce.ComboBoxState;
+type JuceControlState = SliderState | ToggleState | ComboBoxState;
 
 // Subscribe to both valueChanged and propertiesChanged: for sliders the
 // normalised value is derived from the range properties, and the two events
@@ -91,7 +97,7 @@ function removeControlListener(state: JuceControlState, valueId: number): void {
 const propsListenerIds = new Map<string, number>();
 const listenerKey = (state: JuceControlState, valueId: number) => `${state.identifier}#${valueId}`;
 
-function adaptSlider(slider: Juce.SliderState): SliderParameter {
+function adaptSlider(slider: SliderState): SliderParameter {
   return {
     getValue: () => slider.getNormalisedValue(),
     setValue: (value: number) => slider.setNormalisedValue(value),
@@ -104,7 +110,7 @@ function adaptSlider(slider: Juce.SliderState): SliderParameter {
   };
 }
 
-function adaptToggle(toggle: Juce.ToggleState): ToggleParameter {
+function adaptToggle(toggle: ToggleState): ToggleParameter {
   return {
     getValue: () => toggle.getValue(),
     setValue: (value: boolean) => toggle.setValue(value),
@@ -117,7 +123,7 @@ function adaptToggle(toggle: Juce.ToggleState): ToggleParameter {
   };
 }
 
-function adaptComboBox(comboBox: Juce.ComboBoxState): ComboBoxParameter {
+function adaptComboBox(comboBox: ComboBoxState): ComboBoxParameter {
   return {
     getValue: () => comboBox.getChoiceIndex(),
     setValue: (index: number) => comboBox.setChoiceIndex(index),

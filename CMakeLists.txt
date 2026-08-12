@@ -11,7 +11,8 @@ string(STRIP "${T3K_VERSION}" T3K_VERSION)
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/VERSION")
 
-project(TONE3000 VERSION ${T3K_VERSION} LANGUAGES CXX)
+# C is required since JUCE 9 (lunasvg and other C dependencies).
+project(TONE3000 VERSION ${T3K_VERSION} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libs)
@@ -22,8 +23,8 @@ include(cmake/cpm.cmake)
 # Download JUCE using CPM
 CPMAddPackage(
     NAME JUCE
-    GIT_TAG 8.0.14
-    VERSION 8.0.14
+    GIT_TAG 9.0.1
+    VERSION 9.0.1
     GITHUB_REPOSITORY juce-framework/JUCE
     SOURCE_DIR ${LIB_DIR}/juce
 )
@@ -67,8 +68,8 @@ if (APPLE AND ENABLE_WEBVIEW_DEVTOOLS)
 endif()
 
 # macOS: WKWebView paints an opaque white background until the first page paint,
-# which shows as a white flash when the editor opens. JUCE 8 only exposes a
-# background-colour option for Windows (WinWebView2), so patch the WKWebView to
+# which shows as a white flash when the editor opens. JUCE (still true in 9.0.1)
+# only exposes a background-colour option for Windows (WinWebView2), so patch the WKWebView to
 # not draw its own background; the editor's black paint() shows through instead.
 # Idempotent configure-time patch, same rationale as the devtools patch above.
 if (APPLE)

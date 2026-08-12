@@ -356,12 +356,13 @@ endif()
 # identity in hosts. Never change it once released.
 if (NOT HEADLESS AND BUILD_CLAP)
     # Pinned to a commit: the repo's tags track the CLAP protocol version
-    # (0.26.0 = 2022, pre-JUCE 8) and there are no wrapper releases; JUCE 8
-    # compatibility only exists on main.
+    # (0.26.0 = 2022, pre-JUCE 8) and there are no wrapper releases; JUCE 9
+    # compatibility (including the embedded editor scale fix, #183) only
+    # exists on main.
     CPMAddPackage(
         NAME clap-juce-extensions
         GITHUB_REPOSITORY free-audio/clap-juce-extensions
-        GIT_TAG 16e9d4ca7b1e86c76e04584b2c08e85a764bcda8
+        GIT_TAG c1a5ad025f95d01e03267857fa8276ebeed16500
         SOURCE_DIR ${LIB_DIR}/clap-juce-extensions
         EXCLUDE_FROM_ALL YES
     )

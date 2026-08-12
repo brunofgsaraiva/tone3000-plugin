@@ -1,4 +1,4 @@
-import * as Juce from 'juce-framework-frontend';
+import * as Juce from '@juce-framework/webview';
 import { isNativeFunctionRegistered } from './backend/JuceBackend';
 
 /**

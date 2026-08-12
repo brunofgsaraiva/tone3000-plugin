@@ -1,5 +1,5 @@
 import React from 'react';
-import * as Juce from 'juce-framework-frontend';
+import * as Juce from '@juce-framework/webview';
 import { MUTED, filledPillButtonStyle, pillButtonStyle } from './theme';
 
 interface ErrorBoundaryState {

@@ -23,7 +23,7 @@ JUCE backend, so the usual loop is `npm run build` followed by a plugin build.
 
 ## How it talks to the plugin
 
-`juce-framework-frontend` (from the JUCE tree in `../libs`) provides three
+`@juce-framework/webview` (from the JUCE tree in `../libs`) provides three
 primitives, wrapped by `src/backend/JuceBackend.ts`:
 
 - **Parameters**: slider/toggle/combo state bound to APVTS parameters, used

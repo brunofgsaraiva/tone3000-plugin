@@ -1005,7 +1005,7 @@ void TONE3000Processor::processChainOnBuffer(std::vector<std::unique_ptr<ChainBl
           if (!std::isfinite(modelLoudnessDb) || modelLoudnessDb < -100.0f || modelLoudnessDb > 0.0f) {
             modelLoudnessDb = targetLufs;
           }
-          const float gainAdjustmentDb = juce::jlimit(-12.0f, 6.0f, targetLufs - modelLoudnessDb);
+          const float gainAdjustmentDb = juce::jlimit(-12.0f, 12.0f, targetLufs - modelLoudnessDb);
           blockGain = juce::Decibels::decibelsToGain(gainAdjustmentDb);
         }
         block->namNormalizationSmoother.setTargetValue(blockGain);

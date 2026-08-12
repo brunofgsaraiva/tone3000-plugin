@@ -286,7 +286,7 @@ path (build instructions in its header).
 This project is licensed under the **MIT License** (see [LICENSE](LICENSE)).
 
 JUCE has its own licensing, including optional commercial terms; see
-[JUCE Licensing](https://juce.com/juce-6-licence). **NeuralAmpModelerCore**
+[JUCE Licensing](https://juce.com/legal/juce-9-licence/). **NeuralAmpModelerCore**
 carries its own license terms in its directory. **AudioDSPTools**'
 `ResamplingContainer` originates from the iPlug2 project (license in that
 source). The CLAP build uses **clap-juce-extensions** and the **CLAP** SDK
