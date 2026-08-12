@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.22.1)
 
+# Minimum macOS version; see the comment in the root CMakeLists.txt. Repeated
+# here (before project()) so a standalone configure of this directory gets the
+# same floor instead of the build host's macOS version.
+if(NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET STREQUAL "")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version" FORCE)
+endif()
+
 # Required by JUCE (Change these to project specs)
 set(PLUGIN_NAME "TONE3000")            # Name of the plugin (used in the UI)
 set(PLUGIN_CODE T3K0)                # Unique 4-letter code for the plugin

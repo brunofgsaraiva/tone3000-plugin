@@ -1,5 +1,16 @@
 cmake_minimum_required(VERSION 3.22.1)
 
+# Minimum macOS version the binaries will run on. Must be set BEFORE project(),
+# otherwise CMake defaults it to the build machine's own macOS version and the
+# app refuses to launch on anything older ("compatibility" dialog, e.g. built
+# on macOS 15 -> won't open on Ventura 13). JUCE 9 supports back to 10.11;
+# 10.15 covers the Intel slice, the arm64 slice is floored at 11.0 by the
+# toolchain (Apple Silicon minimum). Overridable with
+# -DCMAKE_OSX_DEPLOYMENT_TARGET=... ; harmless on non-Apple platforms.
+if(NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET OR CMAKE_OSX_DEPLOYMENT_TARGET STREQUAL "")
+    set(CMAKE_OSX_DEPLOYMENT_TARGET "10.15" CACHE STRING "Minimum macOS version" FORCE)
+endif()
+
 # Single source of truth for the plugin version (also read by
 # plugin/CMakeLists.txt, the packaging scripts and CI). Bump with
 # script/set-version.sh.
@@ -439,6 +450,114 @@ if (EXISTS "${_juce_standalone_cpp}")
         endif()
         file(WRITE "${_juce_standalone_cpp}" "${_juce_standalone_cpp_src}")
         message(STATUS "Patched JUCE StandaloneFilterApp: settings file kept inside the app data folder")
+    endif()
+endif()
+
+# T3K_AUDIO_DEFAULT_SETUP: fix a JUCE 9 regression in
+# AudioDeviceManager::setAudioDeviceSetup. JUCE 8 treated an unset (0) sample
+# rate / buffer size as "use the device defaults" (chooseBestSampleRate /
+# chooseBestBufferSize). JUCE 9.0.1 replaced both with
+# findNearestValue(available, requested), and nearest-to-0 is the device
+# MINIMUM: switching devices with a zeroed setup (our
+# StandaloneAudioSettings::setDevice, and JUCE's own first-boot initialise)
+# opens e.g. a Focusrite on ALSA at 44.1 kHz with a 16-sample period, which
+# the DSP chain cannot survive (observed as a segfault on device pick on
+# Linux). Restore the JUCE 8 semantics for unset values; explicit requests
+# keep JUCE 9's nearest-supported clamping. Also passes the resolved sample
+# rate (not the raw, possibly-0 request) to the post-open buffer-size
+# correction, which stock JUCE 9 gets wrong too. Idempotent configure-time
+# patch, same rationale as the patches above. Cross-platform file, so this
+# applies everywhere. Drop when upstream fixes it.
+set(_juce_adm_cpp "${LIB_DIR}/juce/modules/juce_audio_devices/audio_io/juce_AudioDeviceManager.cpp")
+if (EXISTS "${_juce_adm_cpp}")
+    file(READ "${_juce_adm_cpp}" _juce_adm_src)
+    if (NOT _juce_adm_src MATCHES "T3K_AUDIO_DEFAULT_SETUP")
+        set(_juce_adm_old
+[=[    const auto sampleRate = findNearestValue (Span { currentAudioDevice->getAvailableSampleRates() }, currentSetup.sampleRate);
+    const auto preBufferSize = findNearestValue (Span { currentAudioDevice->getAvailableBufferSizes() }, currentSetup.bufferSize);
+
+    error = currentAudioDevice->open (currentSetup.inputChannels,
+                                      currentSetup.outputChannels,
+                                      sampleRate,
+                                      preBufferSize);
+
+    if (error.isEmpty())
+    {
+        // The available buffer sizes may have changed, if the sample rate has
+        // changed. If so we'll need to reconfigure with a different buffer size.
+        const auto postBufferSize = findNearestValue (Span { currentAudioDevice->getAvailableBufferSizes() }, currentSetup.bufferSize);
+
+        if (preBufferSize != postBufferSize)
+        {
+            error = currentAudioDevice->open (currentSetup.inputChannels,
+                                              currentSetup.outputChannels,
+                                              currentSetup.sampleRate,
+                                              postBufferSize);
+        }
+    }]=])
+        set(_juce_adm_new
+[=[    // T3K_AUDIO_DEFAULT_SETUP: an unset (0) rate/buffer request must mean
+    // "device defaults" (JUCE 8 semantics), never findNearestValue's
+    // nearest-to-0, which is the device minimum (16-sample ALSA periods).
+    const auto t3kResolveSampleRate = [this]
+    {
+        if (currentSetup.sampleRate > 0)
+            return findNearestValue (Span { currentAudioDevice->getAvailableSampleRates() }, currentSetup.sampleRate);
+
+        const auto rates = currentAudioDevice->getAvailableSampleRates();
+
+        if (const auto current = currentAudioDevice->getCurrentSampleRate();
+            current > 0 && rates.contains (current))
+            return current;
+
+        double lowestAbove44 = 0.0;
+
+        for (const auto sr : rates)
+            if (sr >= 44100.0 && (lowestAbove44 < 1.0 || sr < lowestAbove44))
+                lowestAbove44 = sr;
+
+        return lowestAbove44 > 0.0 ? lowestAbove44
+                                   : findNearestValue (Span { rates }, 48000.0);
+    };
+
+    const auto t3kResolveBufferSize = [this]
+    {
+        return currentSetup.bufferSize > 0
+             ? findNearestValue (Span { currentAudioDevice->getAvailableBufferSizes() }, currentSetup.bufferSize)
+             : currentAudioDevice->getDefaultBufferSize();
+    };
+
+    const auto sampleRate = t3kResolveSampleRate();
+    const auto preBufferSize = t3kResolveBufferSize();
+
+    error = currentAudioDevice->open (currentSetup.inputChannels,
+                                      currentSetup.outputChannels,
+                                      sampleRate,
+                                      preBufferSize);
+
+    if (error.isEmpty())
+    {
+        // The available buffer sizes may have changed, if the sample rate has
+        // changed. If so we'll need to reconfigure with a different buffer size.
+        const auto postBufferSize = t3kResolveBufferSize();
+
+        if (preBufferSize != postBufferSize)
+        {
+            error = currentAudioDevice->open (currentSetup.inputChannels,
+                                              currentSetup.outputChannels,
+                                              sampleRate,
+                                              postBufferSize);
+        }
+    }]=])
+        string(REPLACE "${_juce_adm_old}" "${_juce_adm_new}" _juce_adm_src "${_juce_adm_src}")
+        if (NOT _juce_adm_src MATCHES "T3K_AUDIO_DEFAULT_SETUP")
+            message(FATAL_ERROR
+                "T3K_AUDIO_DEFAULT_SETUP: failed to patch ${_juce_adm_cpp}. "
+                "The JUCE source layout likely changed in this version. Update the patch "
+                "anchors in CMakeLists.txt.")
+        endif()
+        file(WRITE "${_juce_adm_cpp}" "${_juce_adm_src}")
+        message(STATUS "Patched JUCE AudioDeviceManager: unset rate/buffer requests use device defaults, not device minimum")
     endif()
 endif()
 
