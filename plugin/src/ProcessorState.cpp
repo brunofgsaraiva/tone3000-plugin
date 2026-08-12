@@ -10,7 +10,8 @@
 // Shared PropertiesFile for preferences that belong to the machine, not the
 // session/preset (the NAM A2 size and multi-core stereo). Same app-data root
 // as PresetManager: ~/Library/Application Support/TONE3000 on macOS,
-// %APPDATA%/TONE3000 on Windows.
+// %APPDATA%/TONE3000 on Windows, $XDG_CONFIG_HOME/TONE3000 (default
+// ~/.config/TONE3000) on Linux.
 namespace {
 
 constexpr auto kNamFullSizeKey = "namFullSize";
@@ -25,10 +26,24 @@ constexpr int kStateSchemaVersion = 1;
 
 juce::PropertiesFile::Options userSettingsOptions() {
   juce::PropertiesFile::Options options;
-  options.applicationName = "TONE3000";
+  // getDefaultFile() uses applicationName as the filename stem. "preferences"
+  // keeps this store distinct from the standalone holder's TONE3000.settings
+  // in the same folder: two PropertiesFile instances on one file clobber each
+  // other, since each save rewrites the whole file from its in-memory copy.
+  options.applicationName = "preferences";
   options.filenameSuffix = ".settings";
-  options.folderName = "TONE3000";
   options.osxLibrarySubFolder = "Application Support";
+#if JUCE_LINUX || JUCE_BSD
+  // PropertiesFile puts a bare folderName directly under ~ on Linux, so pass
+  // the XDG config location as an absolute path instead (same root as
+  // PresetManager, the logs and the WebKit storage).
+  options.folderName =
+      juce::File::getSpecialLocation(juce::File::userApplicationDataDirectory)
+          .getChildFile("TONE3000")
+          .getFullPathName();
+#else
+  options.folderName = "TONE3000";
+#endif
   return options;
 }
 

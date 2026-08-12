@@ -390,6 +390,58 @@ if (EXISTS "${_juce_standalone_h}")
     endif()
 endif()
 
+# T3K_SETTINGS_IN_APP_FOLDER: keep the standalone app's settings file inside
+# the app's own per-user data folder on every platform. Stock JUCE drops
+# TONE3000.settings loose into the shared config root (~/.config on Linux,
+# ~/Library/Application Support on macOS; Windows already resolves to
+# %APPDATA%/TONE3000 and is unchanged). Linux resolves through
+# userApplicationDataDirectory so XDG_CONFIG_HOME is honoured — the same root
+# as presets, logs and the WebKit storage. The processor's own machine-wide
+# store in the same folder is named preferences.settings (see
+# ProcessorState.cpp), so the two files cannot collide. Idempotent
+# configure-time patch, same rationale as the patches above.
+set(_juce_standalone_cpp "${LIB_DIR}/juce/modules/juce_audio_plugin_client/juce_audio_plugin_client_Standalone.cpp")
+if (EXISTS "${_juce_standalone_cpp}")
+    file(READ "${_juce_standalone_cpp}" _juce_standalone_cpp_src)
+    if (NOT _juce_standalone_cpp_src MATCHES "T3K_SETTINGS_IN_APP_FOLDER")
+        if (_juce_standalone_cpp_src MATCHES "\r\n")
+            set(_juce_nl "\r\n")
+        else()
+            set(_juce_nl "\n")
+        endif()
+        set(_juce_settings_folder_old
+[=[       #if JUCE_LINUX || JUCE_BSD
+        options.folderName          = "~/.config";
+       #else
+        options.folderName          = "";
+       #endif]=])
+        set(_juce_settings_folder_new
+[=[        // T3K_SETTINGS_IN_APP_FOLDER: keep the settings file inside the
+        // app's own data folder instead of loose in the shared config root
+        // (~/.config/<App>.settings on Linux, ~/Library/Application
+        // Support/<App>.settings on macOS). Linux resolves through
+        // userApplicationDataDirectory so XDG_CONFIG_HOME is honoured.
+       #if JUCE_LINUX || JUCE_BSD
+        options.folderName          = File::getSpecialLocation (File::userApplicationDataDirectory)
+                                          .getChildFile (options.applicationName)
+                                          .getFullPathName();
+       #else
+        options.folderName          = options.applicationName;
+       #endif]=])
+        string(REPLACE "\n" "${_juce_nl}" _juce_settings_folder_old "${_juce_settings_folder_old}")
+        string(REPLACE "\n" "${_juce_nl}" _juce_settings_folder_new "${_juce_settings_folder_new}")
+        string(REPLACE "${_juce_settings_folder_old}" "${_juce_settings_folder_new}" _juce_standalone_cpp_src "${_juce_standalone_cpp_src}")
+        if (NOT _juce_standalone_cpp_src MATCHES "T3K_SETTINGS_IN_APP_FOLDER")
+            message(FATAL_ERROR
+                "T3K_SETTINGS_IN_APP_FOLDER: failed to patch ${_juce_standalone_cpp}. "
+                "The JUCE source layout likely changed in this version. Update the patch "
+                "anchors in CMakeLists.txt.")
+        endif()
+        file(WRITE "${_juce_standalone_cpp}" "${_juce_standalone_cpp_src}")
+        message(STATUS "Patched JUCE StandaloneFilterApp: settings file kept inside the app data folder")
+    endif()
+endif()
+
 # T3K_ZOOM_TOGGLE: make the standalone window's native zoom button ("+", the
 # green traffic light) a real toggle: first click grows the window to the
 # editor's maximum scale, second click restores the pre-zoom size. Stock JUCE
