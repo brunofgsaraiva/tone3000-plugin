@@ -173,6 +173,21 @@ private:
   /** Cached once per session; enumerating ASIO drivers hits the registry. */
   std::optional<bool> cachedAsioAvailable;
 
+  // The channel masks we actually asked for, tracked independently of
+  // juce::AudioDeviceManager. dm->getAudioDeviceSetup() cannot be trusted for
+  // this after a successful open: AudioDeviceManager::setAudioDeviceSetup()
+  // ends by calling updateCurrentSetup(), which unconditionally overwrites
+  // its own currentSetup.inputChannels/outputChannels with the device's
+  // *active* (post-open) readback - on hardware whose channel-count floor is
+  // above what we asked for (ALSA's ensureMinimumNumBitsSet), that's always
+  // the padded value, never our request, from the moment setAudioDeviceSetup
+  // returns. These members are the only place the true request survives.
+  // Empty means "no explicit choice recorded for the current device yet";
+  // cleared on a device/type switch, set at every point we know the real
+  // request (setInputChannels/setOutputPair, and the auto-setup policies).
+  juce::BigInteger explicitInputChannels;
+  juce::BigInteger explicitOutputChannels;
+
   // The async mic-permission callback (see ensureMicPermissionRequested) may
   // outlive this object if the window closes while the prompt is up; the weak
   // ref lets it no-op instead of touching freed memory.
