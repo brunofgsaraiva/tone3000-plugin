@@ -244,6 +244,62 @@ faceplate knobs including Output, SPREAD, and the CPU readout. Screenshots:
 `docs/ios-spike/m3-simulator-boot.png` (first launch, mic prompt) and
 `docs/ios-spike/m3-simulator-ui.png` (after the fix).
 
+### M4 Local `.nam` load on the Simulator
+
+Two problems stood between an iPad and a local model, and only one of them
+needed code.
+
+**Reaching the menu.** The Load File / Load Folder rows live in the tile's
+`TileMenu`, which only opens on `contextmenu`. There is no right-click on an
+iPad, and WKWebView does not synthesize `contextmenu` from a long press on a
+plain div, so those rows were unreachable. The fix is entirely in the web UI
+(`ui/src/components/GalleryBlock.tsx`): `useTileMenu` grows a `longPressProps`
+bundle (pointerdown starts a 500 ms timer, a 10 px drift or an early pointerup
+cancels it) that opens the same menu at the same anchor, and sets the same
+click-suppression flag the ctrl-click path uses. It is gated on
+`e.pointerType === 'touch'`, so mouse and trackpad behaviour on macOS, Windows
+and Linux is untouched. 500 ms matches UIKit's own long-press default and
+stays under dnd-kit's drag threshold, so a deliberate tile drag still drags.
+
+**The picker.** No native change was needed. JUCE's `FileChooser` already maps
+to `UIDocumentPickerViewController` on iOS, and the existing
+`*.nam;*.wav` wildcard survives the trip: `juce_FileChooser_ios.mm` turns each
+extension into a `UTType` via `typeWithFilenameExtension:`, and iOS gives `.nam`
+a dynamic type rather than nil, so `.nam` files are listed and selectable
+rather than greyed out.
+
+Test procedure (the picker was driven with taps rather than headlessly):
+
+```sh
+UD=332D5E88-B221-4285-A706-2895AF6CBD8C
+DATA=$(xcrun simctl get_app_container $UD com.bsaraiva.tone3000ios data)
+cp "<some>.nam" "$DATA/Documents/"
+xcrun simctl launch $UD com.bsaraiva.tone3000ios
+# long press a tile -> Load File -> On My iPad -> TONE3000 -> the .nam
+```
+
+Because `FILE_SHARING_ENABLED` and `DOCUMENT_BROWSER_ENABLED` are set, the
+app's Documents folder shows up in the picker as **On My iPad > TONE3000**,
+which is also how a real user will get captures onto the device (drop them into
+that folder from the Files app).
+
+Result: green. From the app log:
+
+```
+[LocalLoad] Loaded 'tone3000-65976-fender-vibroverb-1964-model-443383' into block d3f305e1c2d64bcba448898916735165 (1 of 1 file(s))
+[ModelLoader] Preparing NAM model: tone3000-65976-fender-vibroverb-1964-model-443383.nam (294666 bytes)
+[ModelLoader] NAM model prepared, model sample rate: 48000
+```
+
+The block appears in the chain as a local-file tile and the CPU readout goes
+from 0.4% to 2.1%, so the model is genuinely running on the audio thread. That
+also confirms the `-force_load` link fix from M1: without it the A2 config
+parser would not have registered and the load would have failed with "No config
+parser registered for architecture".
+
+Screenshots: `docs/ios-spike/m4-longpress-tilemenu.png`,
+`docs/ios-spike/m4-document-picker.png`, `docs/ios-spike/m4-nam-loaded.png`.
+
 ### M5 Device (blocked, not attempted)
 
 Signing for the physical iPad is not currently possible on this Mac: Xcode has

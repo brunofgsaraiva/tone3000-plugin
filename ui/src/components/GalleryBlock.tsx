@@ -74,6 +74,13 @@ const preventFocus = (e: React.MouseEvent) => e.preventDefault();
     the OS context menu; macOS ctrl-click lands here too). Ctrl-click also
     fires a synthetic `click` after `contextmenu`; `shouldIgnoreClick`
     swallows that so the tile doesn't navigate away under the menu. */
+/** How long a touch has to stay put before it counts as a long press, and how
+    far it may drift first. Matches the platform feel on iPadOS (UIKit's own
+    long-press default is 0.5s) and stays under dnd-kit's drag threshold so a
+    deliberate tile drag never opens the menu instead. */
+const LONG_PRESS_MS = 500;
+const LONG_PRESS_SLOP_PX = 10;
+
 const useTileMenu = () => {
   const [menuAnchor, setMenuAnchor] = useState<TileMenuAnchor | null>(null);
   const suppressClickRef = useRef(false);
@@ -86,6 +93,50 @@ const useTileMenu = () => {
     setMenuAnchor({ clientX: e.clientX, clientY: e.clientY });
   }, []);
   const closeMenu = useCallback(() => setMenuAnchor(null), []);
+
+  // Touch long-press opens the same menu right-click does. There is no
+  // right-click on an iPad, and WKWebView does not synthesize `contextmenu`
+  // from a long press on a plain div, so without this the Load File / Load
+  // Folder rows (the only way local models get in without drag-and-drop) are
+  // unreachable on iOS. Gated on pointerType 'touch', so mouse and trackpad
+  // behaviour on every desktop platform is untouched.
+  const longPressTimer = useRef<number | undefined>(undefined);
+  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimer.current !== undefined) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = undefined;
+    }
+    longPressOrigin.current = null;
+  }, []);
+  const longPressProps = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      cancelLongPress();
+      const { clientX, clientY } = e;
+      longPressOrigin.current = { x: clientX, y: clientY };
+      longPressTimer.current = window.setTimeout(() => {
+        longPressTimer.current = undefined;
+        longPressOrigin.current = null;
+        // The touch that opened the menu also fires a click on release;
+        // swallow it exactly as the ctrl-click path does.
+        suppressClickRef.current = true;
+        setMenuAnchor({ clientX, clientY });
+      }, LONG_PRESS_MS);
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const origin = longPressOrigin.current;
+      if (origin == null) return;
+      if (
+        Math.abs(e.clientX - origin.x) > LONG_PRESS_SLOP_PX ||
+        Math.abs(e.clientY - origin.y) > LONG_PRESS_SLOP_PX
+      )
+        cancelLongPress();
+    },
+    onPointerUp: cancelLongPress,
+    onPointerCancel: cancelLongPress,
+  };
+  useEffect(() => cancelLongPress, [cancelLongPress]);
   /** True when a tile click should be ignored (followed a contextmenu, is a
       modifier-click, or the menu is already open, in which case it closes). */
   const shouldIgnoreClick = useCallback(
@@ -103,7 +154,7 @@ const useTileMenu = () => {
     },
     [menuAnchor, closeMenu]
   );
-  return { menuAnchor, openMenu, closeMenu, shouldIgnoreClick };
+  return { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps };
 };
 
 /** The tile menus' native-picker rows (Load File / Load Folder). Local
@@ -355,7 +406,8 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
     const { blockId, params } = block;
     const actions = useChainActions();
     const toast = useToast();
-    const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick } = useTileMenu();
+    const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps } =
+    useTileMenu();
 
     // Optimistic power state; native converges via the chainChanged resync
     // (same pattern as the detail card).
@@ -390,6 +442,7 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
       <div
         ref={ref}
         onContextMenu={openMenu}
+        {...longPressProps}
         onDragOver={(e) => armFileDrag(e, setDropArmed)}
         onDragLeave={(e) => disarmFileDrag(e, setDropArmed)}
         onDrop={handleDrop}
@@ -507,7 +560,8 @@ export const AddTile: React.FC<AddTileProps> = ({
   onClick,
   onPaste = null,
 }) => {
-  const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick } = useTileMenu();
+  const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps } =
+    useTileMenu();
   const actions = useChainActions();
   const toast = useToast();
   // True while an OS file drag hovers the tile (drop-target highlight).
@@ -549,6 +603,7 @@ export const AddTile: React.FC<AddTileProps> = ({
         onClick();
       }}
       onContextMenu={openMenu}
+      {...longPressProps}
       onDragOver={(e) => armFileDrag(e, setDropArmed)}
       onDragLeave={(e) => disarmFileDrag(e, setDropArmed)}
       onDrop={handleDrop}
