@@ -137,7 +137,112 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
   cmake --build build-ios --target TONE3000_Standalone -- -sdk iphonesimulator
 ```
 
-See the source changes section below.
+Result: green on the first attempt, zero errors. The bundle lands at
+`build-ios/plugin/TONE3000_artefacts/Debug/Standalone/TONE3000.app`
+(`x86_64 arm64`, `CFBundleIdentifier com.bsaraiva.tone3000ios`,
+`MinimumOSVersion 16.0`). The generated Info.plist carries `UIBackgroundModes
+[audio]`, `UIFileSharingEnabled`, `UISupportsDocumentBrowser`,
+`UIRequiresFullScreen`, landscape-only `UISupportedInterfaceOrientations`,
+`NSMicrophoneUsageDescription` and `NSBluetoothAlwaysUsageDescription`.
+
+Three source files needed iOS branches. Every `#else` branch is the existing
+code, unchanged:
+
+- `plugin/src/WindowMouseEvents.mm` is AppKit end to end (NSEvent injection,
+  the `NSTrackingArea` hover revival, the `NSWindow` background paint, the
+  `WKWebView` context-menu guard). Its entry points are already declared under
+  `#if JUCE_MAC` in `EditorWebViewSetup.h`, so the whole file is wrapped in
+  `#if JUCE_MAC` and compiles to an empty translation unit on iOS rather than
+  being deleted.
+- `plugin/src/WindowKeyEvents.mm` gets an iOS no-op for `forwardKeyToHost`.
+  There is no host DAW to hand a transport key to on iOS and no AppKit event
+  queue to post one into. Keeping the symbol means the UI does not need a
+  second platform check.
+- `plugin/src/AudioPermissions.mm` gets an iOS branch on `AVAudioSession`
+  (`recordPermission` / `requestRecordPermission:`) instead of macOS's
+  `AVCaptureDevice`, and `openMicSettings` opens
+  `UIApplicationOpenSettingsURLString` since iOS has no per-pane privacy URL.
+
+### M3 Run on the Simulator
+
+```sh
+UD=332D5E88-B221-4285-A706-2895AF6CBD8C     # "QA-iPadPro12.9-6th"
+xcrun simctl install $UD build-ios/plugin/TONE3000_artefacts/Release/Standalone/TONE3000.app
+xcrun simctl launch $UD com.bsaraiva.tone3000ios
+xcrun simctl io $UD screenshot docs/ios-spike/m3-simulator-ui.png
+```
+
+Build the **Release** configuration for this. The Debug build points the
+WebView at the Vite dev server (`Editor.cpp` has an `#ifdef JUCE_DEBUG` branch
+loading `http://localhost:5173/`), which is not running, so a Debug build shows
+a failed navigation. Release loads the embedded resources:
+
+```sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
+  cmake --build build-ios --config Release --target TONE3000_Standalone -- -sdk iphonesimulator
+```
+
+Result: green. Proof from the app's own log:
+
+```
+Release mode: loading from embedded resources
+Requested URL: /index.html
+Returning resource: index_html (text/html)
+[webview:log] Main WebView: JUCE C++ Backend loaded
+Requested URL: /main.js
+[webview:log] TONE3000 UI booted
+```
+
+**Where the log goes on iOS.** `FileLogger::getSystemLogFileFolder()` resolves
+inside the app container rather than `~/Library/Logs/TONE3000/`:
+
+```sh
+xcrun simctl get_app_container $UD com.bsaraiva.tone3000ios data
+# -> <container>/Library/TONE3000/TONE3000.log
+```
+
+The iOS microphone permission prompt fires on first launch with the plugin's
+own usage string, which confirms the `AVAudioSession` path and the plist key
+end to end. `xcrun simctl privacy $UD grant microphone com.bsaraiva.tone3000ios`
+does not suppress it (`requestRecordPermission:` still prompts), so the dialog
+has to be tapped once.
+
+#### Layout, and the one real bug this found
+
+The iPad Pro 12.9 is 1366 x 1024 pt in landscape, not 1024 x 768. The first run
+clipped roughly a third of the UI off the right edge: the header's menu and
+account buttons, the output meter rail and the Output knob were all off-screen.
+
+The cause is native, not CSS. The editor installs an aspect-locked constrainer
+(`setFixedAspectRatio(1024.0 / 578.0)` in `updateResizeConstraints`) so desktop
+corner drags scale the whole window. JUCE's iOS standalone window runs in kiosk
+mode and hands the editor the screen bounds; the 1024:578 lock then resolves by
+height, making the editor about 1814 pt wide inside a 1366 pt screen, and the
+window clips the overflow. The web UI never saw a problem because its own
+letterbox fit (`useUiScale`, `min(clientWidth / 1024, clientHeight / designHeight)`)
+was being handed a 1814 pt viewport that the design box fits exactly.
+
+The fix is four small `#if JUCE_IOS` branches in `plugin/src/Editor.cpp`, all of
+which take the position "the window is the screen":
+
+- the constructor does not install the constrainer or the persisted scale, and
+  calls `setResizable(false, false)`;
+- `parentHierarchyChanged` skips the native-title-bar dance, which has nothing
+  to correct in kiosk mode;
+- `setExtraContentHeight` records the height but does not try to grow a window
+  that cannot grow, letting the web UI shrink to fit exactly as it already does
+  for a host that refuses a resize;
+- `resized()` does not persist a scale, since no user or host chose one.
+
+No CSS root scale and no WebView zoom were needed: with the editor at the real
+1366 x 1024, the web UI's existing letterbox fit does the right thing on its
+own (scale 1.334, a 1366 x 771 design box with black above/below).
+
+After the fix everything is on screen and legible: full header (Presets, save,
+add, mono/stereo, tuner, undo/redo, menu, account), both meter rails, all
+faceplate knobs including Output, SPREAD, and the CPU readout. Screenshots:
+`docs/ios-spike/m3-simulator-boot.png` (first launch, mic prompt) and
+`docs/ios-spike/m3-simulator-ui.png` (after the fix).
 
 ### M5 Device (blocked, not attempted)
 
