@@ -8,6 +8,8 @@ import {
   GRAY,
   HIGHLIGHT,
   ICON_BOX_SIZE,
+  iosTouchTargetStyle,
+  TOUCH_TARGET_MIN_PT,
   ICON_SIZE,
   iconButtonStyle,
   MUTED,
@@ -114,6 +116,31 @@ export function chromeIcon(node: React.ReactNode, size?: number): React.ReactNod
   });
 }
 
+/**
+ * Invisible hit-area expander, centred on its parent button. Renders nothing
+ * off iOS, so no extra node is ever mounted on desktop.
+ *
+ * The parent must establish a positioning context (`iosTouchTargetStyle`).
+ * Where the design packs boxes closer together than the 44 pt floor the
+ * expanders overlap slightly; that is the accepted trade in every native
+ * toolkit that does this, since a tap in the gap then picks the nearer of two
+ * buttons rather than missing both.
+ */
+export const IosTouchTarget: React.FC = () =>
+  TOUCH_TARGET_MIN_PT && iosTouchTargetStyle ? (
+    <span
+      aria-hidden
+      style={{
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)',
+        width: `${TOUCH_TARGET_MIN_PT}px`,
+        height: `${TOUCH_TARGET_MIN_PT}px`,
+      }}
+    />
+  ) : null;
+
 export const ChromeIconButton: React.FC<ChromeIconButtonProps> = ({
   onClick,
   help,
@@ -149,10 +176,12 @@ export const ChromeIconButton: React.FC<ChromeIconButtonProps> = ({
       opacity: disabled ? DISABLED_OPACITY : 1,
       cursor: disabled ? 'not-allowed' : 'pointer',
       transform: offsetY !== undefined ? `translateY(${offsetY}rem)` : undefined,
+      ...iosTouchTargetStyle,
       ...style,
     }}
   >
     {chromeIcon(children, ICON_SIZE)}
+    <IosTouchTarget />
   </button>
 );
 

@@ -17,12 +17,37 @@ let committedDesignHeight = DESIGN_HEIGHT;
 let pendingDesignHeight: number | undefined;
 let pendingTimer: number | undefined;
 
+/**
+ * True in the iOS app, where native injects the flag at document start (see
+ * the JUCE_IOS user script in EditorWebViewSetup.cpp). iOS is the only build
+ * whose window is a fixed, full-screen box: there is no corner drag, no host
+ * resize request, and the screen's aspect (4:3 on every iPad) is nothing like
+ * the design box's 1024:578. Everywhere else this is false and the code below
+ * behaves exactly as it always has.
+ */
+export const IS_IOS =
+  (window as unknown as { __T3K_PLATFORM__?: string }).__T3K_PLATFORM__ === 'ios';
+
 /** Largest scale at which a 1024 x designHeight box fits the viewport. The
  * floor covers 0-sized viewports during boot/teardown: pointer math divides
- * by the scale, so it must never be 0. */
+ * by the scale, so it must never be 0.
+ *
+ * On iOS the height term is dropped and the box is fitted to the width alone.
+ * Letterboxing is the right answer on desktop, where the window is aspect
+ * locked and any mismatch is a transient the user is actively dragging
+ * through. On an iPad the mismatch is permanent and large: fitting 1024x578
+ * into 1366x1024 leaves a fifth of the screen as a dead black band below the
+ * UI, forever. Fitting to the width instead makes the design box as wide as
+ * the screen and lets the root box grow to the real viewport height (see
+ * Plugin.tsx), so the flex middle - the signal chain lane - absorbs the slack
+ * and the tiles get bigger instead of the screen getting emptier. Every length
+ * in the UI is still one rem per design px, so nothing is stretched or
+ * distorted; there is simply more room between the header and the faceplate. */
 const fitScale = (designHeight: number): number => {
   const el = document.documentElement;
-  return Math.max(0.05, Math.min(el.clientWidth / DESIGN_WIDTH, el.clientHeight / designHeight));
+  const widthFit = el.clientWidth / DESIGN_WIDTH;
+  if (IS_IOS) return Math.max(0.05, widthFit);
+  return Math.max(0.05, Math.min(widthFit, el.clientHeight / designHeight));
 };
 
 /** Current UI scale (real viewport px per design px): the design box fitted

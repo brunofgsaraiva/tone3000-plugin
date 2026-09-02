@@ -10,7 +10,7 @@ import { useConnectionGate } from '../hooks/useConnectionGate';
 import { useToneSession } from '../hooks/useToneSession';
 import { useToneLoadFlow } from '../hooks/useToneLoadFlow';
 import { useUpdateNotice } from '../hooks/useUpdateNotice';
-import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT } from '../hooks/useUiScale';
+import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT, IS_IOS } from '../hooks/useUiScale';
 import { shouldRestoreToneBrowser } from '../hooks/useT3kSelect';
 import { ChainView, DETAIL_BLOCK_STORAGE_KEY } from './ChainView';
 import { Faceplate, PLATE_HEIGHT } from './Faceplate';
@@ -399,7 +399,12 @@ export const Plugin: React.FC = () => {
         // The window grows by the chrome-strip height (see useChromeChoreography),
         // so the 578px core UI between them keeps its full space.
         // (Figma's 600 includes a 22px mock OS title bar outside JUCE setSize.)
-        height: `${DESIGN_HEIGHT + chrome.rootExtraHeight}rem`,
+        // iOS: the window is the screen and the scale is fitted to the width
+        // alone (see useUiScale), so the box takes the real viewport height
+        // and the flex middle below absorbs whatever the design height does
+        // not use. Everywhere else this is the design-space height exactly as
+        // before.
+        height: IS_IOS ? '100dvh' : `${DESIGN_HEIGHT + chrome.rootExtraHeight}rem`,
         // While the banner slides, the root and the banner wrapper animate
         // height with the same curve, so the flex middle (root minus fixed
         // strips) stays exactly constant and nothing inside moves.

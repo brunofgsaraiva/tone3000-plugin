@@ -361,6 +361,74 @@ Not proved on the device: the on-screen layout (no screenshot channel), the
 long-press menu, the document picker, and audio through the Scarlett. Audio is
 deliberately the owner's step.
 
+## Parity phase
+
+Goal changed after M5: a 1:1 replica of the desktop app on the iPad, not a
+spike. Same branch, one commit per item.
+
+### P1 Fill the screen
+
+**Before:** the UI occupied 1366 x 813 pt of the 1366 x 1024 pt screen, with a
+211 pt dead black band along the bottom (`docs/ios-spike/p1-before.png`).
+
+Worth being precise about why, because the obvious reading of the symptom is
+wrong. The width was already correct: `useUiScale` fits the 1024 x 578 design
+box with `min(clientWidth / 1024, clientHeight / designHeight)`, and on a
+1366 x 1024 screen the width term (1.334) is already the smaller one, so the
+box was *already* as wide as the screen. The band was pure aspect mismatch:
+the design is 1.772:1, the iPad screen is 1.334:1, and letterboxing is what
+fitting one into the other means. "Fill the height while keeping the aspect"
+is not achievable as stated. Forcing it is exactly the bug fixed in M5's
+commit, where the aspect lock resolved by height and clipped the width.
+
+**Fix:** stop fitting the height at all on iOS. `fitScale` returns the width
+fit alone, and the root box in `Plugin.tsx` takes `100dvh` instead of a
+design-space height. The root is already `display: flex; flexDirection:
+column` with fixed strips (banner, hint bar, faceplate) and a flexible middle,
+so the extra 211 pt goes where it should: the signal chain lane. Every length
+in the UI is still exactly one rem per design px, so nothing is stretched,
+squashed or distorted; there is simply more room between the header and the
+faceplate, and the tone tiles are correspondingly taller.
+
+**After:** the UI fills 1366 x 1024 pt with zero letterbox
+(`docs/ios-spike/p1-after.png`).
+
+The iOS switch is a native-injected flag, not a user-agent sniff: a
+`#if JUCE_IOS` user script in `EditorWebViewSetup.cpp` sets
+`window.__T3K_PLATFORM__ = 'ios'` at document start, and `useUiScale` exports
+`IS_IOS` from it. Every desktop build's injected script is byte-identical to
+before.
+
+#### Touch targets
+
+This is where the acceptance criterion was actually failing, and it was
+failing before P1 as much as after: P1 does not change the scale (it was
+already width-limited at 1.334), only how the spare height is distributed.
+
+Measured from the design tokens rather than guessed: `ICON_BOX_SIZE` is 20
+design px and the top bar passes 28, which at 1.334 real px per design px are
+**26.7 pt and 37.4 pt** - both under Apple's 44 pt HIG floor.
+
+Rather than redraw the chrome bigger on one platform, the glyph keeps its size
+and an invisible child (`IosTouchTarget` in `ChromeIconButton.tsx`) stretches
+the *hit* area to 44 pt, centred, on `IconButton` and `ChromeIconButton`. The
+expander is sized in `px`, not `rem`: the page is served `initial-scale=1`, so
+one CSS px is exactly one point, and the value is therefore correct at any
+scale without dividing by it. It renders `null` off iOS, so no extra node is
+mounted on desktop and no desktop layout changes.
+
+Verified rather than asserted: a tap 20 pt below the tuner glyph's centre -
+outside the old 37 pt box, inside the new 44 pt target - opens the tuner
+(icon highlights, hint bar reads "Tuner: chromatic tuner. Click again:
+back."). That incidentally also confirms the tuner works under touch, which is
+part of P5.
+
+Where the design packs boxes closer together than 44 pt the expanders overlap
+slightly. That is the accepted trade in every native toolkit that does this: a
+tap in the gap picks the nearer of two buttons rather than missing both.
+
+macOS Release regression build after this item: green, 0 errors.
+
 ## Open issues
 
 - The TONE3000 publishable key is a placeholder, so the catalogue and OAuth

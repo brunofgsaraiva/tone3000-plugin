@@ -1,7 +1,14 @@
 import React from 'react';
 import { helpProps } from './helpText';
-import { chromeIcon } from './ChromeIconButton';
-import { DISABLED_OPACITY, HIGHLIGHT, ICON_BOX_SIZE, ICON_SIZE, iconButtonStyle } from './theme';
+import { chromeIcon, IosTouchTarget } from './ChromeIconButton';
+import {
+  DISABLED_OPACITY,
+  HIGHLIGHT,
+  ICON_BOX_SIZE,
+  ICON_SIZE,
+  iconButtonStyle,
+  iosTouchTargetStyle,
+} from './theme';
 
 interface IconButtonProps {
   onClick: () => void;
@@ -46,8 +53,10 @@ export const IconButton: React.FC<IconButtonProps> = ({
       opacity: disabled ? DISABLED_OPACITY : 1,
       cursor: disabled ? 'not-allowed' : 'pointer',
       background: active && fillWhenActive ? HIGHLIGHT : 'transparent',
+      ...iosTouchTargetStyle,
     }}
   >
     {chromeIcon(children, glyphSizeFor(size))}
+    <IosTouchTarget />
   </button>
 );
