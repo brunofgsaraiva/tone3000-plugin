@@ -25,6 +25,7 @@ import type { TileMenuAnchor, TileMenuItem } from './TileMenu';
 import type { ChainActions } from '../hooks/useChainActions';
 import { useToast } from './Toast';
 import { GRAY, ICON_SIZE, SURFACE, SURFACE_RAISED } from './theme';
+import { getUiScale } from '../hooks/useUiScale';
 
 /**
  * Gallery view of a chain block: a square tone image with quick actions
@@ -74,12 +75,35 @@ const preventFocus = (e: React.MouseEvent) => e.preventDefault();
     the OS context menu; macOS ctrl-click lands here too). Ctrl-click also
     fires a synthetic `click` after `contextmenu`; `shouldIgnoreClick`
     swallows that so the tile doesn't navigate away under the menu. */
-/** How long a touch has to stay put before it counts as a long press, and how
-    far it may drift first. Matches the platform feel on iPadOS (UIKit's own
-    long-press default is 0.5s) and stays under dnd-kit's drag threshold so a
-    deliberate tile drag never opens the menu instead. */
+/** Design-px of travel before a drag engages, so a tap/click stays a click.
+    Scaled to real px per gesture so the feel tracks the rendered tile size.
+    Consumed by ChainView's PointerSensor and by the long-press slop below. */
+export const GALLERY_DRAG_DISTANCE_PX = 6;
+
+/** How long a touch has to stay put before it counts as a long press.
+    Matches the platform feel on iPadOS (UIKit's own long-press default). */
 const LONG_PRESS_MS = 500;
-const LONG_PRESS_SLOP_PX = 10;
+
+/** How far the finger may drift before the long press is abandoned.
+ *
+ * This is the whole gesture-conflict story, so it is worth being exact. The
+ * lane's PointerSensor is distance-only (no hold trigger, see ChainView), and
+ * engages a drag at GALLERY_DRAG_DISTANCE_PX design px of travel. Keeping the
+ * long-press slop strictly BELOW that makes the two gestures disjoint by
+ * construction rather than by timing luck:
+ *
+ *   0 to 4 design px   the finger is still: the menu timer runs, no drag
+ *   4 to 6 design px   menu abandoned, drag not yet engaged
+ *   6 design px and up drag; the menu timer is already dead, so it cannot
+ *                      fire mid-drag if the finger then pauses
+ *
+ * The earlier value (a flat 10 real px) was larger than the drag threshold,
+ * which left a window where a drag had engaged with the menu timer still
+ * armed: pausing mid-drag popped the menu open over the moving tile.
+ *
+ * Both are scaled by the live UI scale for the same reason the drag distance
+ * is: the feel should track the rendered tile size, not the design grid. */
+const LONG_PRESS_SLOP_DESIGN_PX = GALLERY_DRAG_DISTANCE_PX - 2;
 
 const useTileMenu = () => {
   const [menuAnchor, setMenuAnchor] = useState<TileMenuAnchor | null>(null);
@@ -127,10 +151,8 @@ const useTileMenu = () => {
     onPointerMove: (e: React.PointerEvent) => {
       const origin = longPressOrigin.current;
       if (origin == null) return;
-      if (
-        Math.abs(e.clientX - origin.x) > LONG_PRESS_SLOP_PX ||
-        Math.abs(e.clientY - origin.y) > LONG_PRESS_SLOP_PX
-      )
+      const slop = LONG_PRESS_SLOP_DESIGN_PX * getUiScale();
+      if (Math.abs(e.clientX - origin.x) > slop || Math.abs(e.clientY - origin.y) > slop)
         cancelLongPress();
     },
     onPointerUp: cancelLongPress,

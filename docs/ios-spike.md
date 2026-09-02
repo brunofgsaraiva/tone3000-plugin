@@ -429,6 +429,74 @@ tap in the gap picks the nearer of two buttons rather than missing both.
 
 macOS Release regression build after this item: green, 0 errors.
 
+### Hotfix: security-scoped picker results
+
+Found by the owner on the physical iPad, not by the Simulator test in M4. The
+device log:
+
+```
+[LocalLoad] /private/var/mobile/Containers/Shared/AppGroup/.../File Provider Storage/Downloads/Deluxe Reverb 2.nam: Couldn't read the file
+```
+
+M4 passed for the wrong reason. The `.nam` it loaded had been copied into the
+app's own Documents folder, so reading it by path was legal. Everything a real
+user picks from the Files app lives outside the app sandbox, in an iCloud or
+file-provider container, and is readable only through the security scope
+iOS grants for that one pick. `pickLocalToneFile` used
+`FileChooser::getResults()`, which flattens those picks to raw paths, and fed
+them to `loadLocalTonePath`, whose `stashLocalFileFromDisk` opens a plain
+`FileInputStream`. The sandbox refuses that open, and the failure surfaces as
+the exact string above.
+
+JUCE says as much in its own header: "on mobile platforms, you should call
+getURLResults() instead" (`juce_FileChooser.h`), and
+`juce_FileChooser_ios.mm` bookmarks each pick with
+`startAccessingSecurityScopedResource`.
+
+The fix, all under `#if JUCE_IOS`:
+
+- `pickLocalToneFile` reads `chooser.getURLResults()` and calls a new
+  `TONE3000Processor::loadLocalToneUrls`.
+- That takes 1..N `juce::URL`s and reads each through
+  `juce::URL::createInputStream`, which goes through the bookmark and the
+  scope, then feeds the bytes into the existing `stashLocalBytes` and
+  `finishLocalToneLoad` pipeline. No base64 round trip: the bytes go straight
+  into the same stash the drag-and-drop path fills.
+- macOS, Windows and Linux keep the path route (`loadLocalTonePath`)
+  unchanged.
+
+**Folders.** iOS has no usable folder route, so "Load Folder" becomes
+multi-select there. The picker can return a folder URL, but a security-scoped
+directory cannot be enumerated through `juce::URL` (there is no listing API
+behind the bookmark), so a picked folder would be an unreadable handle. The
+iOS chooser therefore asks for the files themselves
+(`canSelectMultipleItems`) and runs the same many-models-at-once path on the
+result, sorted by natural name order like the folder and drop routes.
+
+**Test.** Deliberately reproduced across the sandbox boundary rather than
+inside the app container. A `.nam` was written to the Simulator's
+file-provider storage:
+
+```sh
+UD=332D5E88-B221-4285-A706-2895AF6CBD8C
+BASE=~/Library/Developer/CoreSimulator/Devices/$UD/data/Containers/Shared/AppGroup
+cp some.nam "$BASE"/*/"File Provider Storage"/Downloads/SANDBOX-TEST.nam
+```
+
+That is `Containers/Shared/AppGroup/...`, while the app's own container is
+`Containers/Data/Application/...` - the same split as the device failure. It
+appears in the picker as **On My iPad > Descargas**, and picking it now logs:
+
+```
+[LocalLoad] Loaded 'SANDBOX-TEST' into block a82556f28bd443a98d21e12b86dbee87 (1 of 1 file(s))
+[ModelLoader] Preparing NAM model: SANDBOX-TEST.nam (295049 bytes)
+[ModelLoader] NAM model prepared, model sample rate: 48000
+```
+
+Screenshot: `docs/ios-spike/hotfix-sandboxed-load.png`.
+
+macOS Release regression build after this item: green, 0 errors.
+
 ## Open issues
 
 - The TONE3000 publishable key is a placeholder, so the catalogue and OAuth

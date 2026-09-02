@@ -24,6 +24,9 @@ import {
   EDGE_FADE_WIDTH,
   gapCenterX,
 } from './GalleryLane';
+// Lives with the tile it applies to, where the touch long-press menu reads it
+// too; importing it from here would cycle (ChainView -> GalleryLane -> GalleryBlock).
+import { GALLERY_DRAG_DISTANCE_PX } from './GalleryBlock';
 import { useChainActions } from '../hooks/useChainActions';
 import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll';
 import { FONT_MONO, WHITE } from './theme';
@@ -75,10 +78,6 @@ interface ChainViewProps {
   /** Bumped on preset load so an open detail takeover returns to the gallery. */
   returnToGallery?: number;
 }
-
-/** Design-px of travel before a drag engages, so tap/click stays a click.
-    Scaled to real px per gesture so the feel tracks the rendered tile size. */
-const GALLERY_DRAG_DISTANCE_PX = 6;
 
 const sensors: Sensors = [
   // Distance-only activation (the stock constraints add a 200ms hold trigger,
