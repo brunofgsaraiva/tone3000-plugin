@@ -758,6 +758,76 @@ owner should confirm the double tap on the device.
 
 macOS Release regression build after this item: green, exit 0.
 
+### P7 item 4: reach, safe areas, navigation gestures
+
+**44 pt floor: one CSS rule, not per-component edits.** `html.t3k-ios` (set
+on `<html>` only in the iOS app) gives every `button`, `[role=button|switch|
+tab|radio]` and `a[href]` an invisible `::after` expander at
+`max(100%, 44px)`, centred and out of flow, so nothing moves. Text fields
+cannot carry a pseudo-element, so those opt in with `.t3k-touch-field`
+(preset name / save / search, MIDI CC); the inline editors inside a fixed
+chrome slot (knob label, EQ band chip) deliberately do not, since a 44 px box
+would spill out of the slot.
+
+Measured against the built bundle at the iPad's exact viewport (1366 x 1024,
+root font-size 1.334, so 1 CSS px = 1 pt):
+
+| screen | controls under 44 pt before | after |
+| ------ | --------------------------- | ----- |
+| chain + faceplate | 5 (preset prev/next 29.3 wide, preset name 32.5 high, Save 37.3, info-bar X 26.7) | 0 |
+| Settings | 8 (close X 37.3, six toggles 53.4x32, "Reveal log file" 18.5 high) | 0 |
+
+An expander can steal taps from a neighbour, so the same harness checks every
+pair: one real collision, the Next Preset chevron reaching 7.3 pt into the
+preset name. Fixed by raising the name above the chevrons on iOS
+(`position: relative; z-index: 1`), which leaves the chevrons the room outside
+the pill. Both screens now report zero collisions.
+
+**Safe areas: nothing to do, and measured rather than assumed.** A boot probe
+on the iPad Pro 12.9 (6th gen) logged `env(safe-area-inset-*)` as `0px` on all
+four sides, with `innerHeight` 999 in a 1024 pt screen: the WKWebView is
+already inset by 25 pt and the page has nothing left to avoid. The faceplate
+and info bar therefore already clear the home indicator. `padding-bottom:
+env(safe-area-inset-bottom, 0px)` is on the root anyway, a no-op today that
+stays correct if the webview is ever made full-bleed. Not proved on the
+device: whether iPadOS draws the indicator over the app there.
+
+**Navigation gestures** (`ui/src/hooks/useTouchGestures.ts`): left-edge swipe
+goes back from SELECT TONE and BLOCK, swipe down dismisses the Tuner and
+Settings sheets. Each screen keeps its visible 44 pt control, so the gesture
+is never the only route.
+
+**Touch events, not pointer events.** The page opts into panning
+(`touch-action: manipulation`), so WKWebView takes a swipe over and ends it
+with a `pointercancel` **reported at 0,0**, with no usable `pointermove` and
+no `pointerup`. Two pointer-based versions failed on this before the log
+showed it (`[swipe] pointercancel dxdy=-683,-300`). `touchend` is delivered
+either way and carries the real end position in `changedTouches`.
+
+**The keyboard needs no help.** Focusing a field on the TONE3000 page inside
+the WebView scrolls it clear of the keyboard by itself
+(`p7-i4-keyboard-clears-field.png`). The Browse *search* field sits behind the
+TONE3000 login, so it is not reachable until the owner completes the magic
+link; the field tested is the login page's own, in the same WebView with the
+same keyboard.
+
+Evidence: `p7-i4-select-tone.png` then `p7-i4-edge-swipe-back.png` (open, then
+back on the chain); `p7-i4-tuner-open.png` then
+`p7-i4-swipe-down-dismissed.png`. Settings dismissal was driven the same way
+and returned to the chain.
+
+**Trap found, and it invalidates "I rebuilt, so I tested the new UI".**
+`plugin/CMakeLists.txt` collects the webview with `file(GLOB_RECURSE)`, which
+runs at **configure** time. Vite's asset names are content-hashed, so any CSS
+change produces a new filename the stale glob does not include, and the app
+keeps serving the previously embedded bundle: two rounds of gesture testing
+here ran against an old UI, which the on-disk log exposed by still printing a
+`console.log` that had been deleted. Always `cmake --preset ios-simulator`
+before building after a UI change, and check the requested asset name in
+`TONE3000.log`.
+
+macOS Release regression after this item: green.
+
 ## Handoff
 
 State as of commit `5193cf1` on `ios-spike`. Everything below is either done

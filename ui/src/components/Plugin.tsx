@@ -11,6 +11,7 @@ import { useToneSession } from '../hooks/useToneSession';
 import { useToneLoadFlow } from '../hooks/useToneLoadFlow';
 import { useUpdateNotice } from '../hooks/useUpdateNotice';
 import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT, IS_IOS } from '../hooks/useUiScale';
+import { useEdgeSwipeBack, useSwipeDownDismiss } from '../hooks/useTouchGestures';
 import { shouldRestoreToneBrowser } from '../hooks/useT3kSelect';
 import { consumePendingToneTarget, peekPendingToneTarget } from '../hooks/useToneLoadFlow';
 import { ChainView, DETAIL_BLOCK_STORAGE_KEY } from './ChainView';
@@ -273,6 +274,14 @@ export const Plugin: React.FC = () => {
     setShowToneBrowser(false);
   }, [loadFlow]);
 
+  // iPad navigation shortcuts (see useTouchGestures). Every one of these
+  // screens keeps its visible 44 pt control: the gesture is an extra route,
+  // not a replacement, which is both the HIG rule and what keeps the app
+  // usable with a mouse or VoiceOver. No-ops off iOS.
+  useEdgeSwipeBack(showToneBrowser, handleBrowserClose);
+  useSwipeDownDismiss(showTuner, closeTuner);
+  useSwipeDownDismiss(showSettings, () => setShowSettings(false));
+
   // Switch a block's model. Native downloads the new model file itself, so
   // refresh-and-sync the token first; switching after the editor has been
   // sitting idle is exactly when the last-pushed token has expired. Local
@@ -424,6 +433,16 @@ export const Plugin: React.FC = () => {
         // not use. Everywhere else this is the design-space height exactly as
         // before.
         height: IS_IOS ? '100dvh' : `${DESIGN_HEIGHT + chrome.rootExtraHeight}rem`,
+        // Home indicator. Measured on an iPad Pro 12.9 (6th gen): this
+        // WKWebView reports every safe-area inset as 0px and is already
+        // 25 pt shorter than the screen, i.e. the container is inset and
+        // there is nothing left for the page to avoid. The declaration is
+        // therefore a no-op today and is here so it stays correct if the
+        // webview is ever made full-bleed (viewport-fit=cover) or the app
+        // runs on a device that does report an inset. box-sizing is
+        // border-box, so any real inset shortens the box and the flex middle
+        // absorbs it: the faceplate and the hint bar move up together.
+        paddingBottom: IS_IOS ? 'env(safe-area-inset-bottom, 0px)' : undefined,
         // While the banner slides, the root and the banner wrapper animate
         // height with the same curve, so the flex middle (root minus fixed
         // strips) stays exactly constant and nothing inside moves.
