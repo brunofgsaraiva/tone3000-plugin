@@ -85,11 +85,28 @@ const sensors: Sensors = [
   // guard already keeps buttons and other interactive chrome from starting
   // drags, so power/swap/trash stay clicks.
   PointerSensor.configure({
-    activationConstraints: () => [
-      new PointerActivationConstraints.Distance({
-        value: GALLERY_DRAG_DISTANCE_PX * getUiScale(),
-      }),
-    ],
+    activationConstraints: (event) => {
+      // Touch: the iOS Home screen gesture. A hold lifts the tile, and only
+      // then does moving reorder it, which leaves a plain swipe free to scroll
+      // the lane (the tile face opts back into panning on iOS; see
+      // TileSurface). This is dnd-kit's own touch default, restored: the
+      // override below is written for pointer devices and would otherwise
+      // apply to touch as well.
+      //
+      // Note for the upstream reviewer: desktop deliberately drags straight
+      // off the tile face, which is right for a mouse, where there is no
+      // competing scroll gesture on the element itself. Apple's HIG asks for
+      // the opposite on iPad, so the two platforms genuinely want different
+      // rules here rather than one shared one.
+      if (event.pointerType === 'touch')
+        return [new PointerActivationConstraints.Delay({ value: 250, tolerance: 5 })];
+
+      return [
+        new PointerActivationConstraints.Distance({
+          value: GALLERY_DRAG_DISTANCE_PX * getUiScale(),
+        }),
+      ];
+    },
   }),
   // Stock keyboard sorting: Space or Enter on a focused tile picks it up,
   // arrows snap it one slot per press (the sortable's SortableKeyboardPlugin

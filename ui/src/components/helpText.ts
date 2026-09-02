@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { IS_IOS } from '../hooks/useUiScale';
 
 /**
  * Central help system: every control publishes a one-line hint here while
@@ -203,8 +204,9 @@ export const HELP = {
   presetPc: 'PC: the MIDI program change number that loads this preset.',
 
   // Chain gallery
-  addTile:
-    'Add Tone: browse TONE3000 for this slot, or drop a .nam or IR .wav file (or a folder of them). Right-click: paste / load file · drag: move.',
+  addTile: IS_IOS
+    ? 'Add Tone: browse TONE3000 for this slot, or use On this iPad to load a local .nam or IR .wav. Touch and hold: slot menu.'
+    : 'Add Tone: browse TONE3000 for this slot, or drop a .nam or IR .wav file (or a folder of them). Right-click: paste / load file · drag: move.',
   closeToneBrowser: 'Close: back to the chain.',
   copyBlock: 'Copy: copy this block (tone, model and all settings).',
   pasteBlock: 'Paste: add a copy of the copied block in this slot.',
@@ -214,6 +216,8 @@ export const HELP = {
   retryLoad: 'Retry: re-download this model.',
   swapTone: 'Swap: replace this tone, keeping its slot.',
   tileMenu: 'More: block actions (copy, load a local file, remove).',
+  moveBlockLeft: 'Move left: swap this block with the one before it.',
+  moveBlockRight: 'Move right: swap this block with the one after it.',
   removeBlock: 'Remove: delete this block.',
   panLeft: knobHelp('Pan L', 'Left chain, hard left ↔ center.'),
   panRight: knobHelp('Pan R', 'Right chain, center ↔ hard right.'),
@@ -280,7 +284,11 @@ export const HELP = {
 
 /** Gallery tile: leads with the tone's own name. */
 export const toneTileHelp = (title: string) =>
-  `${title}. Click: open · drag: reorder · ${alt('drag')}: duplicate · right-click: copy / load file.`;
+  IS_IOS
+    ? // The gesture rule, stated where the user is looking (HIG asks for a
+      // visible explanation rather than a discoverable-by-accident gesture).
+      `${title}. Tap: open · touch and hold, then drag: reorder · hold and release: menu · swipe: scroll the chain.`
+    : `${title}. Click: open · drag: reorder · ${alt('drag')}: duplicate · right-click: copy / load file.`;
 
 /** Curve-type selector buttons in the EQ editor. */
 export const bandTypeHelp = (label: string) => `${label}: band curve shape.`;

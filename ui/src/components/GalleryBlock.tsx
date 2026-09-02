@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSortable } from '@dnd-kit/react/sortable';
 import {
+  ArrowLeft,
   ArrowLeftRight,
+  ArrowRight,
   ClipboardPaste,
   Copy,
   Ellipsis,
@@ -81,9 +83,11 @@ const preventFocus = (e: React.MouseEvent) => e.preventDefault();
     Consumed by ChainView's PointerSensor and by the long-press slop below. */
 export const GALLERY_DRAG_DISTANCE_PX = 6;
 
-/** How long a touch has to stay put before it counts as a long press.
-    Matches the platform feel on iPadOS (UIKit's own long-press default). */
-const LONG_PRESS_MS = 500;
+/** How long a touch has to be held before releasing it opens the tile menu.
+    Matches the lift delay in ChainView's touch activation constraint, so the
+    two halves of the same gesture agree: past this point the tile is lifted,
+    and letting go without moving is a request for the menu rather than a tap. */
+const LONG_PRESS_MS = 250;
 
 /** How far the finger may drift before the long press is abandoned.
  *
@@ -132,47 +136,69 @@ const useTileMenu = () => {
     setMenuAnchor({ clientX: rect.left, clientY: rect.bottom });
   }, []);
 
-  // Touch long-press opens the same menu right-click does. There is no
-  // right-click on an iPad, and WKWebView does not synthesize `contextmenu`
-  // from a long press on a plain div, so without this the Load File / Load
-  // Folder rows (the only way local models get in without drag-and-drop) are
-  // unreachable on iOS. Gated on pointerType 'touch', so mouse and trackpad
-  // behaviour on every desktop platform is untouched.
-  const longPressTimer = useRef<number | undefined>(undefined);
-  const longPressOrigin = useRef<{ x: number; y: number } | null>(null);
+  // Touch: the iOS Home screen rule. A hold lifts the tile (dnd-kit's Delay
+  // constraint, see ChainView); moving after that reorders and no menu ever
+  // appears, while releasing the hold without moving opens the tile's menu at
+  // that point. A quick swipe is neither: it scrolls the lane.
+  //
+  // The menu therefore fires on pointerUP after a hold, not on a timer. Firing
+  // on a timer would race the lift: both would trigger at their own moment and
+  // the sheet would open over a tile that is already travelling.
+  //
+  // Gated on pointerType 'touch', so mouse and trackpad behaviour on every
+  // desktop platform is untouched.
+  const pressStart = useRef<{ x: number; y: number; at: number } | null>(null);
+  const releaseListener = useRef<((e: PointerEvent) => void) | null>(null);
+
   const cancelLongPress = useCallback(() => {
-    if (longPressTimer.current !== undefined) {
-      window.clearTimeout(longPressTimer.current);
-      longPressTimer.current = undefined;
+    pressStart.current = null;
+    if (releaseListener.current) {
+      window.removeEventListener('pointerup', releaseListener.current, true);
+      window.removeEventListener('pointercancel', releaseListener.current, true);
+      releaseListener.current = null;
     }
-    longPressOrigin.current = null;
   }, []);
+
   const longPressProps = {
     onPointerDown: (e: React.PointerEvent) => {
       if (e.pointerType !== 'touch') return;
       cancelLongPress();
-      const { clientX, clientY } = e;
-      longPressOrigin.current = { x: clientX, y: clientY };
-      longPressTimer.current = window.setTimeout(() => {
-        longPressTimer.current = undefined;
-        longPressOrigin.current = null;
-        // The touch that opened the menu also fires a click on release;
-        // swallow it exactly as the ctrl-click path does.
+      const start = { x: e.clientX, y: e.clientY, at: Date.now() };
+      pressStart.current = start;
+
+      // The release is watched on window, in the capture phase, not on the
+      // tile. Once the hold elapses, the sensor lifts the tile and takes
+      // pointer capture, after which no pointerup reaches this element at all
+      // - the first version of this listened on the tile and the menu simply
+      // never opened, while the swallowed click fell through and opened the
+      // block's detail view instead.
+      const onRelease = (ev: PointerEvent) => {
+        const held = pressStart.current;
+        cancelLongPress();
+        if (held == null || ev.type !== 'pointerup') return;
+        if (Date.now() - held.at < LONG_PRESS_MS) return;
+        if (
+          Math.abs(ev.clientX - held.x) > LONG_PRESS_SLOP_DESIGN_PX * getUiScale() ||
+          Math.abs(ev.clientY - held.y) > LONG_PRESS_SLOP_DESIGN_PX * getUiScale()
+        )
+          return;
+        // The release that opens the sheet also fires a click; swallow it
+        // exactly as the ctrl-click path does.
         suppressClickRef.current = true;
-        setMenuAnchor({ clientX, clientY });
-      }, LONG_PRESS_MS);
+        setMenuAnchor({ clientX: held.x, clientY: held.y });
+      };
+      releaseListener.current = onRelease;
+      window.addEventListener('pointerup', onRelease, true);
+      window.addEventListener('pointercancel', onRelease, true);
     },
     onPointerMove: (e: React.PointerEvent) => {
-      const origin = longPressOrigin.current;
-      if (origin == null) return;
+      const start = pressStart.current;
+      if (start == null) return;
       const slop = LONG_PRESS_SLOP_DESIGN_PX * getUiScale();
-      if (Math.abs(e.clientX - origin.x) > slop || Math.abs(e.clientY - origin.y) > slop)
+      if (Math.abs(e.clientX - start.x) > slop || Math.abs(e.clientY - start.y) > slop)
         cancelLongPress();
     },
-    onPointerUp: cancelLongPress,
-    onPointerCancel: cancelLongPress,
   };
-  useEffect(() => cancelLongPress, [cancelLongPress]);
   /** True when a tile click should be ignored (followed a contextmenu, is a
       modifier-click, or the menu is already open, in which case it closes). */
   const shouldIgnoreClick = useCallback(
@@ -293,10 +319,18 @@ const TileSurface: React.FC<{
           cursor: 'pointer',
           boxSizing: 'border-box',
           border: dropArmed ? FILE_DROP_BORDER : undefined,
-          // Touch drags: without this, touch devices claim the gesture for
-          // lane scrolling and pointercancel kills the drag instantly. Drag
-          // wins on the tile face; lanes still pan from the gaps around it.
-          touchAction: 'none',
+          // Pointer devices: drag wins on the tile face, since a mouse has no
+          // competing scroll gesture there and lanes still pan from the gaps
+          // around it.
+          //
+          // iOS reverses this deliberately. HIG's reorder gesture is
+          // touch-and-hold to lift, then drag, which means a plain swipe over
+          // a tile has to scroll the lane like a swipe anywhere else. Allowing
+          // pan-x hands quick swipes to the browser (dnd-kit sees
+          // pointercancel and stands down), while a 250 ms hold elapses before
+          // any pan begins, so the sensor captures the pointer and the drag
+          // proceeds. See the activation constraints in ChainView.
+          touchAction: IS_IOS ? 'pan-x' : 'none',
         }}
       >
         {dropArmed ? (
@@ -447,6 +481,9 @@ interface GalleryBlockProps {
   index: number;
   /** The lane this tile sorts in. */
   group: ChainSide;
+  /** The lane's full order, as ids. Backs the menu's Move left / Move right,
+      the visible alternative to the drag gesture (HIG: never only a gesture). */
+  laneIds: string[];
   /** Tile edge, px. */
   size: number;
   /** Open the detail takeover for this block. */
@@ -458,7 +495,7 @@ interface GalleryBlockProps {
     the ChainActions context, so there are no per-render callback props to
     defeat the memo. */
 export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
-  ({ block, index, group, size, onOpen }) => {
+  ({ block, index, group, size, onOpen, laneIds }) => {
     const { blockId, params } = block;
     const actions = useChainActions();
     const toast = useToast();
@@ -479,6 +516,19 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
     const [dropArmed, setDropArmed] = useState(false);
 
     const { ref, isDragging } = useSortable({ id: blockId, index, group });
+
+    /** Swap this tile with its neighbour, committing the whole lane order the
+        same way a drop does so undo covers it. */
+    const moveBy = useCallback(
+      (delta: -1 | 1) => {
+        const to = index + delta;
+        if (to < 0 || to >= laneIds.length) return;
+        const next = [...laneIds];
+        [next[index], next[to]] = [next[to], next[index]];
+        actions.reorderBlocks(next);
+      },
+      [actions, index, laneIds]
+    );
 
     const handleTogglePower = useCallback(
       (e: React.MouseEvent) => {
@@ -554,6 +604,29 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
                 help: HELP.copyBlock,
                 onSelect: () => actions.copyBlock(blockId),
               },
+              // Visible alternative to the drag gesture, per the HIG rule
+              // that a gesture is never the only route. Hidden at the ends of
+              // the lane rather than dimmed, like every other unavailable row
+              // on touch. Reordering rides the same reorderBlocks action the
+              // drag commits, so it lands in undo history identically.
+              ...(IS_IOS
+                ? ([
+                    {
+                      label: 'Move left',
+                      icon: <ArrowLeft size={16} />,
+                      help: HELP.moveBlockLeft,
+                      disabled: index <= 0,
+                      onSelect: () => moveBy(-1),
+                    },
+                    {
+                      label: 'Move right',
+                      icon: <ArrowRight size={16} />,
+                      help: HELP.moveBlockRight,
+                      disabled: index >= laneIds.length - 1,
+                      onSelect: () => moveBy(1),
+                    },
+                  ] as TileMenuItem[])
+                : []),
               ...localLoadMenuItems(blockId, actions, toast),
               // Destructive row last and red, per the HIG's context-menu
               // shape. Touch only: on desktop the trash button in the tile
