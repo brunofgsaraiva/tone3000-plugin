@@ -673,6 +673,91 @@ different rules here, and the `IS_IOS` split in `TileSurface` and
 `ChainView`'s activation constraints is a deliberate platform divergence
 rather than a fix to the desktop behaviour.
 
+### P7 item 3: touch help, and the knob under a finger
+
+Three things the desktop UI gets from a mouse and iPad has no equivalent for:
+hover help, a modifier-click reset, and a value readout you can see while you
+adjust it.
+
+**The info bar follows the finger.** `helpText.ts` already resolved a hint on
+`pointerdown` as well as `mouseover`, so a tap did caption the control. What
+it never did was stop: the caption stayed on whatever was last touched, which
+on a mouse is correct (the pointer really is still there) and on touch is
+simply a wrong label sitting under an idle screen. A touch release now clears
+it, so the bar mirrors the finger exactly as it mirrors a mouse.
+
+Two traps, both paid for:
+
+- The release must be watched on `window` in the capture phase. A knob takes
+  pointer capture on press, and its `pointerup` never bubbles to `document`.
+  This is the same trap item 2 hit with the tile menu.
+- **WebKit replays a mouse event pair after every touch** (`mouseover`,
+  `mousemove`, `mousedown`, `mouseup`, `click`), aimed at the element just
+  tapped, and it lands *after* `pointerup`. The first version cleared the
+  hint on release and the replayed `mouseover` put it straight back: the bar
+  looked untouched, and would have been reported as "no change" if the state
+  had not been marked before the test. Mouseover is now ignored for 700 ms
+  after a touch release, which is narrower than dropping `mouseover` on iOS
+  and keeps the genuine hover an iPad trackpad produces.
+
+**The copy says what the gesture is.** The knob legend and the two EQ ones
+branch by hand, because their gestures genuinely differ; every other line
+goes through one `touchify` pass that rewrites `Right-click` to `Touch and
+hold` and `click` to `tap`, so the two platforms cannot drift apart line by
+line. Knobs read `drag up or down: adjust - double tap: reset` on iOS instead
+of the Shift/double-click/Alt legend.
+
+**"Touch and hold: advanced" had to be made true first.** WKWebView never
+fires `contextmenu` for a long press, so the Spread and Align advanced decks,
+which open on `onContextMenu`, had no route at all on iPad. New hook
+`ui/src/hooks/useTouchHold.ts` spreads onto the same element and fires the
+same toggle after a 500 ms hold, and swallows the click that follows so the
+hold does not also enable the feature. It renders nothing off iOS. It is
+deliberately not the tile's gesture: a tile competes with the lift and with
+lane scrolling and must wait for the release, while nothing competes here.
+
+**Knobs.** On iOS a double tap resets to the default, recognised from the
+pointer stream (300 ms, 24 px) rather than from `dblclick`, which WKWebView
+ties to its own double-tap handling; `onDoubleClick` is unbound there, so the
+type-in editor cannot also open and put the iOS keyboard over the knob being
+edited. Every one of the 16 `KnobControl` instances declares a
+`defaultValue`, so no knob loses a gesture. A value bubble sits above the
+knob while dragging, showing the same string as the label readout, which on
+touch is under the finger. `IosTouchTarget` now also mounts inside the knob:
+at the iPad's scale the 48 px primary and 36 px secondary knobs are already
+64 pt and 48 pt, so it changes nothing there, but the 44 pt floor now holds
+by construction rather than by arithmetic coincidence.
+
+**A bug the test found.** The first double-tap recogniser armed on every
+`pointerdown`, including the one that starts a drag. Dragging a knob and then
+tapping it inside the 300 ms window read as a pair and threw the drag away:
+the knob snapped back to its default the moment you touched it again. A press
+that travels past the slop now withdraws its own tap candidate.
+
+Evidence:
+
+- `docs/ios-spike/p7-i3-touch-help-and-bubble.png`: mid-drag on Middle. The
+  bubble reads `5.4` above the knob and the info bar reads "Middle: tone
+  stack mids, 0-10: +/-15 dB bell at 425 Hz. drag up or down: adjust - double
+  tap: reset".
+- `docs/ios-spike/p7-i3-release-clears-bar.png`: the same screen after
+  release. Bar empty, bubble gone, knob left at its new value.
+- `docs/ios-spike/p7-i3-hold-advanced-deck.png`: a 1.3 s hold on the SPREAD
+  advert button opens the Wobble / Crossover / Diffuse deck, and Spread is
+  still off, so the suppressed click worked.
+
+**Not proved on the Simulator: the double tap itself.** Two taps cannot be
+driven closer than about a second through the automation bridge, which is
+outside the 300 ms window. It was proved instead against the same built
+bundle running with `__T3K_PLATFORM__ = 'ios'` in a browser, driving real
+`pointerType: 'touch'` events: drag to 10.0, two lone taps 600 ms apart leave
+it at 10.0, a pair 140 ms apart returns it to 5.0, and the sequence repeats.
+That exercises the recogniser but not WKWebView; the Simulator run above
+proves WKWebView delivers touch pointer events to the same handler. The
+owner should confirm the double tap on the device.
+
+macOS Release regression build after this item: green, exit 0.
+
 ## Handoff
 
 State as of commit `5193cf1` on `ios-spike`. Everything below is either done

@@ -61,16 +61,43 @@ const installDelegation = () => {
     emit();
   };
 
+  // WebKit replays a mouse event pair (mouseover, mousemove, mousedown,
+  // mouseup, click) after every touch, aimed at the element just tapped.
+  // The replay lands *after* pointerup, so it would restore the hint the
+  // release below has just cleared: the bar kept captioning the last thing
+  // touched, exactly the behaviour the release is there to remove. Ignoring
+  // it for a beat is narrower than dropping `mouseover` on iOS, which would
+  // also kill the genuine hover an iPad trackpad produces.
+  const MOUSE_REPLAY_MS = 700;
+  let lastTouchRelease = -Infinity;
+
   const resolve = (e: Event) => {
+    if (e.type === 'mouseover' && performance.now() - lastTouchRelease < MOUSE_REPLAY_MS) return;
     const el = e.target instanceof Element ? e.target.closest(`[${HELP_ATTR}]`) : null;
     update(el?.getAttribute(HELP_ATTR) ?? null);
   };
 
   document.addEventListener('mouseover', resolve);
   // Touch-only devices never hover, so pressing a control is the hint
-  // trigger there (harmless for mouse users; press implies hover). The
-  // hint stays up after the tap until the next press lands elsewhere.
+  // trigger there (harmless for mouse users; press implies hover).
   document.addEventListener('pointerdown', resolve);
+  // A touch press is the hover equivalent, so the release is the un-hover:
+  // the bar shows the control's help for exactly as long as the finger is
+  // down, then clears. Leaving stale help pinned to the last thing tapped
+  // was the desktop behaviour of a stationary mouse, which on touch just
+  // reads as a wrong caption. Mouse and pen releases are ignored, so
+  // desktop hover is untouched.
+  //
+  // On `window` in the capture phase: a control that took pointer capture
+  // (knobs, the tile lift) retargets its release, and a bubbling document
+  // listener can miss it entirely.
+  const releaseTouch = (e: PointerEvent) => {
+    if (e.pointerType !== 'touch') return;
+    lastTouchRelease = performance.now();
+    update(null);
+  };
+  window.addEventListener('pointerup', releaseTouch, true);
+  window.addEventListener('pointercancel', releaseTouch, true);
   // Pointer left the window entirely.
   document.addEventListener('mouseout', (e) => {
     if (e.relatedTarget === null) update(null);
@@ -132,12 +159,23 @@ const chord = (macGlyph: string, name: string) => (gesture: string) =>
 const shift = chord('\u21e7', 'Shift');
 const alt = chord('\u2325', 'Alt');
 
-/** Shared legend for every KnobControl (they all support these gestures). */
-const KNOB_KEYS = `${shift('drag')}: fine · double-click: type · ${alt('click')}: reset`;
+/** Shared legend for every KnobControl (they all support these gestures).
+    Touch has no modifier keys and no separate click button, so iOS gets the
+    two gestures it actually has: drag and double tap (see KnobControl). */
+const KNOB_KEYS = IS_IOS
+  ? 'drag up or down: adjust · double tap: reset'
+  : `${shift('drag')}: fine · double-click: type · ${alt('click')}: reset`;
 
 export const knobHelp = (name: string, desc: string) => `${name}: ${desc} ${KNOB_KEYS}`;
 
-export const HELP = {
+/**
+ * Desktop copy. iOS re-words it through `touchify` below rather than
+ * branching every line: only the entries whose *gesture* differs (knobs, EQ
+ * faders and dots, the tile and slot menus) are branched by hand above, and
+ * everything else differs only in the noun for "press this", which one pass
+ * can do without letting the two platforms' wording drift apart.
+ */
+const HELP_DESKTOP = {
   // Faceplate: gains
   inputLevel: knobHelp('Input', 'chain input level, ±24 dB.'),
   inputMode: 'Input Mode: source channels. Stereo: both · L/R: one. Click: choose.',
@@ -262,17 +300,23 @@ export const HELP = {
   backToChain: 'Back: chain overview.',
 
   // EQ editor
-  eqFader: `Band Fader: gain, ±15 dB. ${shift('drag')}: fine · double-click / ${alt(
-    'click'
-  )}: reset.`,
+  eqFader: IS_IOS
+    ? 'Band Fader: gain, ±15 dB. drag: adjust · double tap: reset.'
+    : `Band Fader: gain, ±15 dB. ${shift('drag')}: fine · double-click / ${alt(
+        'click'
+      )}: reset.`,
   eqFaderPass: 'Pass Band: no gain. Shape it in Curve view.',
-  eqDot: `Band Dot: drag: freq + gain · scroll: Q · ${shift('drag')}: fine · ${alt(
-    'click'
-  )}: reset.`,
+  eqDot: IS_IOS
+    ? 'Band Dot: drag: freq + gain · double tap: reset. Q: use the Q chip.'
+    : `Band Dot: drag: freq + gain · scroll: Q · ${shift('drag')}: fine · ${alt(
+        'click'
+      )}: reset.`,
   eqFreqChip:
     'Freq: click to type (\u201c800\u201d, \u201c1.2k\u201d). Enter: commit · Esc: cancel.',
   eqGainChip: 'Gain: click to type, ±15 dB. Enter: commit · Esc: cancel.',
-  eqQChip: `Q: scroll the graph (${shift('scroll')}: fine) or click to type.`,
+  eqQChip: IS_IOS
+    ? 'Q: tap to type. Enter: commit · Esc: cancel.'
+    : `Q: scroll the graph (${shift('scroll')}: fine) or click to type.`,
 
   // Meters
   clipDot: 'Clip: latches on clipping. Click: clear.',
@@ -281,6 +325,31 @@ export const HELP = {
   cpuLoad: 'CPU: audio engine load.',
   hideHints: 'Hide Info Bar: hide this bar. Re-enable in Settings.',
 } as const;
+
+/**
+ * Desktop pointer vocabulary rewritten for touch. `Right-click` first, since
+ * it contains `click`; the advanced Spread/Align decks answer a touch and
+ * hold on iOS exactly as they answer a right-click on desktop (see
+ * SpreadControls / AlignControls).
+ */
+const TOUCH_WORDING: readonly (readonly [RegExp, string])[] = [
+  [/Right-click/g, 'Touch and hold'],
+  [/right-click/g, 'touch and hold'],
+  [/Click/g, 'Tap'],
+  [/click/g, 'tap'],
+];
+
+const touchify = (copy: Record<string, string>): Record<string, string> =>
+  Object.fromEntries(
+    Object.entries(copy).map(([key, text]) => [
+      key,
+      TOUCH_WORDING.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text),
+    ])
+  );
+
+export const HELP: Record<keyof typeof HELP_DESKTOP, string> = IS_IOS
+  ? (touchify(HELP_DESKTOP) as Record<keyof typeof HELP_DESKTOP, string>)
+  : HELP_DESKTOP;
 
 /** Gallery tile: leads with the tone's own name. */
 export const toneTileHelp = (title: string) =>
