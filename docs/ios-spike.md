@@ -300,16 +300,11 @@ parser registered for architecture".
 Screenshots: `docs/ios-spike/m4-longpress-tilemenu.png`,
 `docs/ios-spike/m4-document-picker.png`, `docs/ios-spike/m4-nam-loaded.png`.
 
-### M5 Device (blocked, not attempted)
+### M5 Device: physical iPad Pro 12.9
 
-Signing for the physical iPad is not currently possible on this Mac: Xcode has
-no Apple account signed in, so automatic signing fails with "No Accounts: Add a
-new account in Accounts settings" even though the `Apple Development` identity
-exists in the keychain and the provisioning profile folders are empty. This was
-proved separately and M5 was not attempted here.
-
-Once the owner has signed in to Xcode with the Apple ID belonging to team
-`H9RD544ZD4`, this is the exact sequence to run:
+Signing was blocked earlier in the session (Xcode had no Apple account, so
+automatic signing failed with "No Accounts"). Once the owner signed in with the
+Apple ID of team `H9RD544ZD4` this ran green on the first attempt.
 
 ```sh
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
@@ -320,21 +315,51 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
     -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM=H9RD544ZD4
 
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer \
-  cmake --build build-ios-device --target TONE3000_Standalone -- \
+  cmake --build build-ios-device --config Release --target TONE3000_Standalone -- \
     -sdk iphoneos -allowProvisioningUpdates
 
 xcrun devicectl device install app \
   --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
-  build-ios-device/plugin/TONE3000_artefacts/Debug/Standalone/TONE3000.app
+  build-ios-device/plugin/TONE3000_artefacts/Release/Standalone/TONE3000.app
 
 xcrun devicectl device process launch \
   --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
   com.bsaraiva.tone3000ios
 ```
 
-The `ios-device` CMake preset wraps the configure step; it reads the team id
-from the `TONE3000_DEVELOPMENT_TEAM` environment variable so no personal team
+The `ios-device` CMake preset wraps the configure step and reads the team id
+from the `TONE3000_DEVELOPMENT_TEAM` environment variable, so no personal team
 id is committed.
+
+Result: green. The bundle is signed by `Apple Development: saraiva69@gmail.com
+(5C5HXWUVR9)` with `TeamIdentifier=H9RD544ZD4` and
+`Identifier=com.bsaraiva.tone3000ios`; install and launch both reported
+success.
+
+`devicectl` has no screenshot command, so the proof is the app's own log,
+pulled back off the device:
+
+```sh
+xcrun devicectl device copy from \
+  --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
+  --domain-type appDataContainer --domain-identifier com.bsaraiva.tone3000ios \
+  --source Library/TONE3000/TONE3000.log --destination ./m5-device-launch.log
+```
+
+Saved as `docs/ios-spike/m5-device-launch.log`. It shows the real-hardware
+audio device opening and the UI booting from embedded resources:
+
+```
+[Processor] prepareToPlay: sampleRate=48000, samplesPerBlock=256
+[Processor] prepareToPlay: sampleRate=48000, samplesPerBlock=128
+Release mode: loading from embedded resources
+[webview:log] Main WebView: JUCE C++ Backend loaded
+[webview:log] TONE3000 UI booted
+```
+
+Not proved on the device: the on-screen layout (no screenshot channel), the
+long-press menu, the document picker, and audio through the Scarlett. Audio is
+deliberately the owner's step.
 
 ## Open issues
 
