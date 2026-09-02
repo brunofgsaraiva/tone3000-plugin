@@ -497,6 +497,71 @@ Screenshot: `docs/ios-spike/hotfix-sandboxed-load.png`.
 
 macOS Release regression build after this item: green, 0 errors.
 
+### P2 Touch reorder
+
+Green, and it needed one real fix plus a corrected test.
+
+**The gesture rule, and why the two gestures do not fight.** The lane's
+`PointerSensor` is configured distance-only (`ChainView`), deliberately: the
+stock constraints add a 200 ms hold that would turn a slow click-to-open into
+a drag. It engages at `GALLERY_DRAG_DISTANCE_PX` (6) design px of travel. The
+long-press menu added earlier used a flat 10 real px slop, which is *larger*
+than the 6-design-px (~8 real px) drag threshold, leaving a window where a
+drag had engaged with the menu timer still armed: pausing mid-drag popped the
+menu open over a moving tile.
+
+The slop now derives from the drag constant instead of being an independent
+magic number, which makes the gestures disjoint by construction:
+
+| travel | behaviour |
+| ------ | --------- |
+| 0 to 4 design px | menu timer runs, no drag |
+| 4 to 6 design px | menu abandoned, drag not yet engaged |
+| 6 design px and up | drag; the menu timer is already dead, so it cannot fire mid-drag |
+
+`GALLERY_DRAG_DISTANCE_PX` moved from `ChainView` to `GalleryBlock` so both
+consumers share it. Importing it the other way would have cycled
+(`ChainView -> GalleryLane -> GalleryBlock`).
+
+**`touch-action` turned out to be a non-issue.** The worry was that WKWebView
+would claim horizontal finger drags for panning the lane instead of delivering
+pointermove. It does not: dnd-kit engages normally and the lane still scrolls.
+No CSS change was needed.
+
+**A correction to how this was first tested.** The first drag looked like it
+did nothing. It had in fact worked: both tiles held the *same* model and local
+tone tiles render an identical file glyph, so a swap was invisible. Re-run with
+one block bypassed (dimmed glyph, lit power chip) as a marker, the swap is
+obvious. Worth recording because the same trap swallowed the M4 result.
+
+Verified on the Simulator, all three behaviours:
+
+- **Drag a tile** - press and drag the bypassed tile rightward past its
+  neighbour: the two swap (`docs/ios-spike/p2-reorder-before.png`,
+  `docs/ios-spike/p2-reorder-after.png`).
+- **Swipe the lane background** - a quick horizontal swipe on empty lane still
+  scrolls the chain (`docs/ios-spike/p2-lane-scroll.png`).
+- **Pause mid-drag** - a drag with a deliberate 1200 ms hold in the middle
+  completes as a reorder and shows no menu, which is exactly the regression
+  the slop fix prevents.
+
+Tapping a block's power button also works under touch, which is part of P5.
+
+**Known gap, deferred to P7 item 2.** Because activation is distance-only, a
+swipe that *starts on a tile* reorders rather than scrolls; only swipes
+starting on the lane background scroll. Apple's HIG wants touch-and-hold then
+drag, which would let a plain swipe over a tile scroll instead. dnd-kit's own
+default for `pointerType === 'touch'` is exactly that
+(`Delay({ value: 250, tolerance: 5 })`), but the project's `activationConstraints`
+override ignores its arguments and so drops it for touch as well as mouse.
+Restoring it collides head-on with the 500 ms long-press menu (the drag would
+start at 250 ms and the menu could never fire), so the two cannot simply
+coexist. P7 item 1 resolves this by putting a visible "..." button on each
+tile, at which point the hidden long-press is no longer the only way to reach
+the menu and hold-to-drag can take over.
+
+macOS Release regression build after this item: green, 0 errors.
+
 ## Open issues
 
 - The TONE3000 publishable key is a placeholder, so the catalogue and OAuth
