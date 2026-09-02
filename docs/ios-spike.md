@@ -619,6 +619,193 @@ committed.
 
 macOS Release regression build after this item: green, 0 errors.
 
+### P7 item 1b: On this iPad
+
+Select Tone now opens with an **On this iPad** section (Load file / Load
+files) above the gear filters, iOS only. It reads the same pending-target
+sessionStorage keys `handleToneSelected` consumes, so a local pick lands in
+exactly the slot or swap target that opened the browser; the targets are
+consumed only after a successful load, so a cancelled picker leaves the slot
+armed. Screenshot: `docs/ios-spike/p7-on-this-ipad.png`.
+
+### P7 item 2: hold to lift, swipe to scroll
+
+The gesture rule on iPad, as implemented:
+
+| gesture | result |
+| ------- | ------ |
+| tap a tile | open the block |
+| swipe over a tile | scroll the lane |
+| hold (250 ms), then drag | reorder |
+| hold, release without moving | open the tile menu at that point |
+| `...` button | the same menu, explicitly |
+| menu: Move left / Move right | the same reorder, without any gesture |
+
+Three pieces made that work. dnd-kit's touch activation went back to its own
+default, `Delay({ value: 250, tolerance: 5 })`. The tile face opts back into
+panning on iOS (`touch-action: pan-x`), so a quick swipe reaches the browser
+and dnd-kit stands down on `pointercancel`, while a 250 ms hold elapses
+before any pan begins and the sensor captures the pointer instead. And the
+menu opens on *release after a hold*, not on a timer, which would have raced
+the lift and opened a sheet over a tile already travelling.
+
+**The trap worth knowing:** that release has to be watched on `window` in the
+capture phase, not on the tile. Once the hold elapses the sensor takes
+pointer capture and no `pointerup` reaches the element at all. The first
+version listened on the tile: the menu never opened, and the click fell
+through and opened the block's detail view instead.
+
+Move left / Move right commit the whole lane order through `reorderBlocks`,
+the same action a drop uses. Undo therefore covers them identically:
+`reorderChainBlocks` calls `pushChainHistory()` (`ProcessorChain.cpp:680`),
+confirmed at the source rather than assumed.
+
+Screenshot: `docs/ios-spike/p7-hold-release-menu.png`.
+
+#### Note for the upstream reviewer
+
+Desktop keeps `touch-action: none` on the tile face and drags straight off
+it. That is right for a mouse: nothing else competes for the gesture on that
+element, and the lane still pans from the gaps around the tiles. Apple's HIG
+asks for the opposite on iPad, where a swipe anywhere is expected to scroll
+and reordering is a touch-and-hold. So the two platforms genuinely want
+different rules here, and the `IS_IOS` split in `TileSurface` and
+`ChainView`'s activation constraints is a deliberate platform divergence
+rather than a fix to the desktop behaviour.
+
+## Handoff
+
+State as of commit `5193cf1` on `ios-spike`. Everything below is either done
+and verified on the Simulator, or explicitly not started.
+
+### Done
+
+| Item | State |
+| ---- | ----- |
+| M0 macOS baseline | green |
+| M1 iOS configure | green (`cmake --preset ios-simulator`) |
+| M2 Simulator compile | green |
+| M3 Run on Simulator | green, UI boots from embedded resources |
+| M4 Local `.nam` load | green (see the hotfix below; M4's own test was flawed) |
+| M5 Physical iPad | green: signs, installs, launches, opens audio at 48 kHz |
+| Hotfix: security-scoped URLs | green, tested across the real sandbox boundary |
+| P1 Fill the screen + 44 pt hit areas | green |
+| P2 Touch reorder | green, superseded by P7 item 2's gesture rule |
+| P7 item 1a `...` button + menu rules | green |
+| P7 item 1b On this iPad | green |
+| P7 item 2 hold-to-lift, Move rows | green except haptics |
+
+### Not started
+
+- **P7 item 2, haptics.** Optional in the spec. Needs a small native bridge:
+  a `#if JUCE_IOS` native function calling `UIImpactFeedbackGenerator`
+  (`.medium` on lift, `.light` on drop), called from `ChainView`'s
+  `onDragStart` / `onDragEnd`. Cheap; simply not reached.
+- **P7 item 3.** Touch help in the info bar (`pointerdown` shows a control's
+  help, release clears it) and a value bubble on knobs while dragging, plus
+  double-tap to reset and a 44 pt knob hit area.
+- **P7 item 4.** 44 pt for everything outside the two icon-button primitives
+  (gear chips, stream tabs, preset arrows, slot `+`, account menu rows), safe
+  areas (faceplate above the home indicator), left-edge swipe back, swipe
+  down to dismiss the Settings and Tuner sheets, search field above the iOS
+  keyboard.
+- **P7 item 5.** Confirm no system gesture is intercepted (3-finger
+  undo/redo, 4-finger app switch, edge swipes).
+- **Tile-row scaling** (owner request). The lane fills the screen after P1
+  but the tiles stay 224 design px, leaving black above and below the row.
+  Scale the tile row and its `+` glyph to fill the lane with the design's
+  margins, capped so four tiles still fit across 1366 pt with horizontal
+  scroll, and keep BLOCK / SELECT TONE filling the same area.
+- **P3** Files import parity: drag-and-drop of `.nam` / `.wav` from Files in
+  Split View onto a tile, if WKWebView receives the drop. Folder import is
+  already answered: iOS cannot enumerate a security-scoped directory, so
+  Load Folder is multi-select there.
+- **P4** Audio device settings through AVAudioSession: route, input channel,
+  buffer size, sample rate. Verify the settings page renders and does not
+  crash on the Simulator. The physical Scarlett test stays with the owner.
+- **P5** Presets, tuner, undo/redo, stereo toggle, spread/align under touch.
+  Partly done incidentally: the tuner opens, per-block power works.
+- **P6** Bluetooth MIDI: enable `BluetoothMidiDevicePairingDialogue` from
+  MIDI settings on iOS and confirm it opens on the Simulator.
+- **OAuth sign-in check** (folded into P3/P4 by the coordinator): on the
+  Simulator, account menu > Sign in should open the TONE3000 authorize page
+  inside the same WebView and the `juce://` redirect should return to the
+  app. Stop at the login page and screenshot; the login is a magic link to
+  the owner. The real publishable key is already in `ui/.env` and the live
+  Trending catalogue loads, so the key and network path are known good.
+
+### Commands
+
+```sh
+cd /Users/bruno.saraiva/Developer/tone3000-plugin-ios
+export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+
+# UI (always rebuild after touching ui/, then rebuild the app)
+cd ui && npx tsc --noEmit -p tsconfig.app.json && npx eslint src && npm run build && cd ..
+
+# iOS Simulator, Release (Debug points the WebView at localhost:5173)
+cmake --build build-ios --config Release --target TONE3000_Standalone -- -sdk iphonesimulator -quiet
+
+# macOS regression, required after every item
+cmake --build build --target TONE3000_Standalone -j 8
+
+# install + launch
+UD=332D5E88-B221-4285-A706-2895AF6CBD8C     # "QA-iPadPro12.9-6th", keep ONE simulator booted
+xcrun simctl terminate $UD com.bsaraiva.tone3000ios
+xcrun simctl install $UD build-ios/plugin/TONE3000_artefacts/Release/Standalone/TONE3000.app
+xcrun simctl launch $UD com.bsaraiva.tone3000ios
+
+# the app's log (the single most useful debugging channel)
+DATA=$(xcrun simctl get_app_container $UD com.bsaraiva.tone3000ios data)
+tail -30 "$DATA/Library/TONE3000/TONE3000.log"
+
+# screenshots come out portrait; the app is landscape
+xcrun simctl io $UD screenshot shot.png && sips -r 90 shot.png --out shot.png
+
+# device (install only unless told otherwise; Documents must survive)
+cmake --build build-ios-device --config Release --target TONE3000_Standalone -- \
+  -sdk iphoneos -allowProvisioningUpdates
+xcrun devicectl device install app --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
+  build-ios-device/plugin/TONE3000_artefacts/Release/Standalone/TONE3000.app
+xcrun devicectl device info files --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
+  --domain-type appDataContainer --domain-identifier com.bsaraiva.tone3000ios --username mobile
+```
+
+### Driving the Simulator
+
+The iPad is in the portrait device frame while the app renders landscape, so
+tap coordinates need converting. With the screen 1366 x 1024 pt landscape and
+the device frame 1024 x 1366 pt portrait, and a screenshot rotated 90 degrees
+clockwise for reading:
+
+```
+portrait_x = landscape_y
+portrait_y = 1366 - landscape_x
+```
+
+A long press is `control` with `action: touch_path` and two points at the same
+coordinate separated by `dt_ms`.
+
+### Traps already paid for
+
+- **"Looks unchanged" is not evidence.** Two results were misread this way.
+  M4 passed only because the `.nam` sat inside the app container, so the
+  sandbox never had to be crossed; the device then failed. P2's first drag
+  looked like a no-op but had worked, because both tiles held the same model
+  and local tone tiles render an identical file glyph. **Mark state
+  explicitly** before testing: bypass one block (dimmed glyph, lit power
+  chip) so a reorder is visible, and put test files *outside* the app
+  container when testing the picker.
+- **Debug iOS builds load `http://localhost:5173/`.** Always build Release on
+  the Simulator or you get a dead page and a confusing "navigation failed".
+- **Pointer capture hides `pointerup`.** See P7 item 2 above.
+- **`xcrun simctl privacy grant microphone` does not suppress the prompt**;
+  `AVAudioSession.requestRecordPermission` still asks. Tap it once.
+- **Never commit `ui/.env`.** It holds the real publishable key, is
+  gitignored, and must not appear in reports or docs either.
+- **Keep one simulator booted** and do not touch simulators you did not
+  create.
+
 ## Open issues
 
 - The TONE3000 publishable key is a placeholder, so the catalogue and OAuth
