@@ -213,6 +213,7 @@ export const HELP = {
   blockPower: 'Power: bypass this block.',
   retryLoad: 'Retry: re-download this model.',
   swapTone: 'Swap: replace this tone, keeping its slot.',
+  tileMenu: 'More: block actions (copy, load a local file, remove).',
   removeBlock: 'Remove: delete this block.',
   panLeft: knobHelp('Pan L', 'Left chain, hard left ↔ center.'),
   panRight: knobHelp('Pan R', 'Right chain, center ↔ hard right.'),

@@ -562,6 +562,63 @@ the menu and hold-to-drag can take over.
 
 macOS Release regression build after this item: green, 0 errors.
 
+## P7 Touch navigation
+
+Spec: "Navegacao por toque TONE3000 iPad" (owner, 2026-09-02), from Apple's
+HIG pages Gestures, Context menus, and Drag and drop.
+
+### P7 item 1: never only a hidden gesture
+
+HIG: *"Always make context menu items available in the main interface, too."*
+The long-press menu added in M4 was the only route to Load File / Load Folder
+on iOS, which is exactly what that rule forbids.
+
+- **Visible `...` button on every tone tile** (touch only). It sits in the
+  tile's top chrome bar between the power button and the swap/trash cluster,
+  and opens the same sheet the long press does, anchored to the button's own
+  bottom-left rather than to a pointer position the user never sees on touch.
+  Desktop passes no `onMore`, so no extra button is mounted and the tile is
+  unchanged.
+- **Unavailable rows hidden, not dimmed** (touch only). `TileMenu` filters
+  `disabled` rows when `IS_IOS`. On an empty slot with nothing copied, Paste
+  now simply is not there; desktop keeps the dimmed row, which is the
+  platform convention and the behaviour that menu has always had.
+- **Destructive row last and red.** `TileMenuItem` gained a `destructive`
+  flag rendering the label in `BRAND_RED`, and the tone tile's sheet gets a
+  `Remove` row at the end on touch. Desktop does not add the row: its trash
+  button is one hover away, and changing a menu every existing user knows is
+  not this spike's business.
+
+Evidence: `docs/ios-spike/p7-tile-more-menu.png` (the `...` button and the
+sheet with Copy / Load File / Load Folder / **Remove** in red),
+`docs/ios-spike/p7-paste-hidden.png` (empty slot, Paste absent rather than
+greyed).
+
+Two findings worth recording, because they change what later items have to do:
+
+- **The tile chrome already handles touch.** `.tile-chrome` is hover-revealed
+  in `index.css`, but there is already an `@media (hover: none)` block that
+  pins it visible on touch devices. Power, swap and trash were never
+  unreachable on iPad; only the context-menu rows were.
+- **`touchAction: 'none'` is already set on the tile face**, with a comment
+  stating the intent plainly: "Drag wins on the tile face; lanes still pan
+  from the gaps around it." So P2's observed behaviour (a swipe starting on a
+  tile reorders, a swipe on the lane background scrolls) is a deliberate
+  upstream decision, not an oversight. Item 2's plan - hold-to-drag so a
+  plain swipe over a tile scrolls - therefore means *reversing* that decision
+  on iOS, not filling a gap.
+
+### OAuth redirect URI (question 3 of issue #55)
+
+Answered for this account: the owner's TONE3000 account has no redirect URI
+restrictions ("If no URIs are set, any redirect URI will be accepted"), so
+`juce://juce.backend/index.html` needs no registration here. Upstream may
+still want the URI documented for accounts that do restrict it. The real
+publishable key now lives in `ui/.env`, which is gitignored and never
+committed.
+
+macOS Release regression build after this item: green, 0 errors.
+
 ## Open issues
 
 - The TONE3000 publishable key is a placeholder, so the catalogue and OAuth

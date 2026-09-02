@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   ClipboardPaste,
   Copy,
+  Ellipsis,
   File,
   FolderClosed,
   PlusCircle,
@@ -25,7 +26,7 @@ import type { TileMenuAnchor, TileMenuItem } from './TileMenu';
 import type { ChainActions } from '../hooks/useChainActions';
 import { useToast } from './Toast';
 import { GRAY, ICON_SIZE, SURFACE, SURFACE_RAISED } from './theme';
-import { getUiScale } from '../hooks/useUiScale';
+import { getUiScale, IS_IOS } from '../hooks/useUiScale';
 
 /**
  * Gallery view of a chain block: a square tone image with quick actions
@@ -118,6 +119,19 @@ const useTileMenu = () => {
   }, []);
   const closeMenu = useCallback(() => setMenuAnchor(null), []);
 
+  /** Open the same sheet from a visible control rather than a gesture.
+      HIG: "Always make context menu items available in the main interface,
+      too" - a hidden long press must never be the only route. Anchored to the
+      button's own bottom-left so the sheet hangs off the chrome that opened
+      it, instead of at a pointer position the user never sees on touch. */
+  const openMenuAtElement = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    suppressClickRef.current = true;
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setMenuAnchor({ clientX: rect.left, clientY: rect.bottom });
+  }, []);
+
   // Touch long-press opens the same menu right-click does. There is no
   // right-click on an iPad, and WKWebView does not synthesize `contextmenu`
   // from a long press on a plain div, so without this the Load File / Load
@@ -176,7 +190,14 @@ const useTileMenu = () => {
     },
     [menuAnchor, closeMenu]
   );
-  return { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps };
+  return {
+    menuAnchor,
+    openMenu,
+    openMenuAtElement,
+    closeMenu,
+    shouldIgnoreClick,
+    longPressProps,
+  };
 };
 
 /** The tile menus' native-picker rows (Load File / Load Folder). Local
@@ -232,7 +253,11 @@ const TileSurface: React.FC<{
   /** OS file drag is hovering this tile (upload icon + dashed green border). */
   dropArmed: boolean;
   actions: TileActions;
-}> = ({ block, size, enabled, dragging, dropArmed, actions }) => {
+  /** Opens the tile's action sheet from the visible "..." chrome button.
+      Only supplied on touch platforms; desktop reaches the same sheet with a
+      right-click and shows no extra button. */
+  onMore?: (e: React.MouseEvent) => void;
+}> = ({ block, size, enabled, dragging, dropArmed, actions, onMore }) => {
   const { blockId, tone } = block;
 
   // A model download/prepare is in flight: `modelLoading` covers switches
@@ -375,6 +400,15 @@ const TileSurface: React.FC<{
               <Power size={ICON_SIZE} />
             </ChromeIconButton>
             <div style={{ display: 'flex', gap: '16rem' }}>
+              {onMore && (
+                <ChromeIconButton
+                  help={HELP.tileMenu}
+                  onClick={onMore}
+                  onMouseDown={preventFocus}
+                >
+                  <Ellipsis size={ICON_SIZE} />
+                </ChromeIconButton>
+              )}
               <ChromeIconButton
                 help={HELP.swapTone}
                 onClick={actions.onSwap}
@@ -428,8 +462,14 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
     const { blockId, params } = block;
     const actions = useChainActions();
     const toast = useToast();
-    const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps } =
-    useTileMenu();
+    const {
+      menuAnchor,
+      openMenu,
+      openMenuAtElement,
+      closeMenu,
+      shouldIgnoreClick,
+      longPressProps,
+    } = useTileMenu();
 
     // Optimistic power state; native converges via the chainChanged resync
     // (same pattern as the detail card).
@@ -480,6 +520,7 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
         }}
       >
         <TileSurface
+          onMore={IS_IOS ? openMenuAtElement : undefined}
           block={block}
           size={size}
           enabled={enabled}
@@ -514,6 +555,21 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
                 onSelect: () => actions.copyBlock(blockId),
               },
               ...localLoadMenuItems(blockId, actions, toast),
+              // Destructive row last and red, per the HIG's context-menu
+              // shape. Touch only: on desktop the trash button in the tile
+              // chrome is always a hover away, and adding a row here would
+              // change a menu every existing user knows.
+              ...(IS_IOS
+                ? [
+                    {
+                      label: 'Remove',
+                      icon: <Trash2 size={16} />,
+                      help: HELP.removeBlock,
+                      destructive: true,
+                      onSelect: () => actions.removeBlock(blockId),
+                    },
+                  ]
+                : []),
             ]}
           />
         )}
