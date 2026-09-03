@@ -1179,6 +1179,50 @@ Three tiles fully visible per lane, the fourth peeking, exactly as in mono
 
 macOS Release regression build after this item: green, 0 errors.
 
+### The P5 table, row by row
+
+Simulator `332D5E88-B221-4285-A706-2895AF6CBD8C`, Release build, three local
+`.nam` models from `On this iPad > Load file` (`Load files` puts all three into
+*one* block, which is the Load Folder shape, so the other two blocks were
+loaded one file at a time). Screenshots are `docs/ios-spike/p5-*.png`.
+
+| Row | Verdict | Evidence |
+| --- | ------- | -------- |
+| Tap a tile / its chrome | **was broken, fixed** | `p5-tile-tap-fix.png`, `p5-block-detail.png` |
+| Preset prev | passes, wraps Alpha -> AlphaBeta | `p5-preset-prev.png` |
+| Preset next | passes, loads the chain | `p5-preset-next.png` |
+| Preset name popover | passes; sits under the pill, the keyboard it raises covers only the lane below | `p5-preset-popover-keyboard.png` |
+| Save popover vs the keyboard | passes; field and Save button both above the keyboard | `p5-preset-save-popover.png`, `p5-preset-saved-alpha.png` |
+| New | passes; clears the chain and greys itself out (it resets directly, there is no popover to check) | `p5-preset-new.png` |
+| Preset list scroll on touch | passes; a swipe moves the list and reorders nothing | `p5-preset-list-long.png`, `p5-preset-list-scroll.png` |
+| Preset reorder on touch | passes; hold the grip, then drag | `p5-preset-reorder-before.png`, `p5-preset-reorder-after.png` |
+| The two "drag" hint strings | fixed | see the section above |
+| Tuner open | passes | `p5-tuner-open.png` |
+| Tuner close | passes, both `X` and swipe down | `p5-tuner-swipe-dismiss.png` |
+| Chain reorder on touch | passes; bypassed block moves slot 1 -> 2 | `p5-chain-reorder-before.png`, `p5-chain-reorder-after.png` |
+| Swipe over a tile scrolls the lane | passes | `p5-lane-scroll.png` |
+| Undo / redo a reorder | passes both ways | `p5-undo-reorder.png`, `p5-redo-reorder.png` |
+| Remove, then undo | passes for a block loaded this run | `p5-block-remove.png`, `p5-undo-remove.png` |
+| Copy / paste, then undo | passes; Paste appears in the slot menu only once the clipboard holds a block | `p5-tile-menu.png`, `p5-slot-menu-paste.png`, `p5-paste.png`, `p5-undo-paste.png` |
+| Mono / stereo toggle | passes; two lanes, pan rail, ALIGN and Balance | `p5-stereo-two-lanes.png` |
+| Stereo two-lane layout | fixed, tiles now scale | `p5-stereo-tiles-after.png` |
+| Spread advanced deck on hold | passes | `p5-spread-advanced.png` |
+| Align advanced deck on hold | passes | `p5-align-advanced.png` |
+| Per-block EQ faders | passes; drag lifts the 100 Hz band and the response redraws | `p5-block-eq.png`, `p5-block-eq-drag.png` |
+| Per-block EQ curve | passes; dragging a dot selects the band and sets its gain | `p5-block-eq-curve.png` |
+| Block swap | passes; opens SELECT TONE for that block | `p5-block-swap.png` |
+| Block remove | passes (row above) | `p5-block-remove.png` |
+| Block info / share | **not tested** | both are `{!isLocal && ...}` in `ChainBlock`, so they exist only for a catalogue tone, which needs the sign-in |
+
+**One more thing worth writing down.** Undo of a *remove* first came back as
+"Download failed / Retry". The log said
+`Local model file missing or unreadable: file:///.../Application/1060BB2C-.../LocalModels/...`
+while the app was by then running out of `5890C095-...`: the reinstall had
+rotated the data container, and the preset carried an absolute path into the
+old one. The cached `.nam` was present under the new container. Re-run with a
+block loaded in the same session, undo restores it intact. Recorded in
+`docs/ios.md` under Known gaps; it is not a touch problem and not P5's to fix.
+
 ## Handoff
 
 State as of the tip of `ios-spike`. Everything below is either done and

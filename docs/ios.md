@@ -74,6 +74,29 @@ Every touch target meets 44 pt through one rule in `index.css` under
 `html.t3k-ios`: an invisible `::after` at `max(100%, 44px)`, centred and out
 of flow, so no layout changes.
 
+## Touch verification
+
+Everything below was driven on the iPad Simulator against a Release build.
+Local `.nam` models only: the catalogue needs a sign-in the port cannot
+complete (see Known gaps).
+
+| Area | Verdict |
+| ---- | ------- |
+| Tap a chain tile; power / `...` / swap / trash on it | fixed and passing. A 44 pt hit expander was landing on the tile wrapper, which dnd-kit marks `role="button"`, and swallowing every tap |
+| Preset prev / next | steps and wraps |
+| Preset name popover | opens under the pill, above the keyboard it raises |
+| Save preset | popover and its field stay clear of the keyboard; saves |
+| New | clears the chain, greys out once at the default |
+| Preset reorder on touch | swipe scrolls the list; hold the grip, then drag, moves the row |
+| Tuner | opens; closes by `X` and by swipe down |
+| Undo / redo | covers reorder (both ways), remove and paste |
+| Mono / stereo toggle | switches; two lanes, pan rail, ALIGN and Balance appear |
+| Stereo two-lane layout | tiles scale with the same three-across rule as mono |
+| Spread / Align, hold for the advanced deck | both decks open on a touch and hold |
+| Per-block EQ | faders and curve dots both drag; the response redraws |
+| Block swap / remove | swap opens SELECT TONE for that block; remove takes it out |
+| Block info / share | **not tested**: both controls exist only for a catalogue tone |
+
 ## Platform notes worth knowing
 
 - **Picker results must be read through security-scoped URLs.** A file chosen
@@ -105,6 +128,12 @@ of flow, so no layout changes.
 - The double-tap knob reset is proved in a browser against the same bundle,
   not on a device: two taps cannot be driven inside 300 ms through the
   Simulator automation bridge.
+- Undoing a *remove* restores the block by reloading its cached model from an
+  absolute path under the app container. Reinstalling the app rotates that
+  container, so a preset saved before a reinstall comes back as "Download
+  failed / Retry" even though the cached file is there under the new
+  container. Seen on the Simulator across reinstalls; not seen for a block
+  loaded in the same run.
 - Dragging a `.nam` from Files onto a tile is untested. The receiving code is
   the same HTML5 drop path the desktop uses, and the app does window alongside
   Files, but the drag could not be driven from the automation.
