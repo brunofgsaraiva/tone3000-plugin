@@ -1080,137 +1080,94 @@ That is presentation only, and unrelated to the plist change.
 
 ## Handoff
 
-State as of commit `5193cf1` on `ios-spike`. **Superseded**: P7 items 3 and
-4 landed after it, so the table below is a snapshot, not current state. The
-newest Handoff section at the end of this file is the live one.
+State as of the tip of `ios-spike`. Everything below is either done and
+verified as described, or explicitly not started. The older Handoff section
+above this one is a historical snapshot and is marked superseded.
+
+**Read `docs/ios.md` first.** It is the PR-facing document: build, install,
+touch rules, the platform traps, known gaps. This file is the working diary
+and must not go upstream; it carries machine paths and device identifiers.
 
 ### Done
 
 | Item | State |
 | ---- | ----- |
-| M0 macOS baseline | green |
-| M1 iOS configure | green (`cmake --preset ios-simulator`) |
-| M2 Simulator compile | green |
-| M3 Run on Simulator | green, UI boots from embedded resources |
-| M4 Local `.nam` load | green (see the hotfix below; M4's own test was flawed) |
-| M5 Physical iPad | green: signs, installs, launches, opens audio at 48 kHz |
-| Hotfix: security-scoped URLs | green, tested across the real sandbox boundary |
-| P1 Fill the screen + 44 pt hit areas | green |
-| P2 Touch reorder | green, superseded by P7 item 2's gesture rule |
-| P7 item 1a `...` button + menu rules | green |
-| P7 item 1b On this iPad | green |
-| P7 item 2 hold-to-lift, Move rows | green except haptics |
+| M0-M5, hotfix, P1, P2 | green (see the milestone sections above) |
+| P7 item 1a/1b, item 2 | green |
+| P7 item 2 haptics | bridge proved by log; the buzz is unverified |
+| P7 item 3 touch help, knob bubble, double-tap reset | green |
+| P7 item 4 44 pt, safe areas, swipe back / swipe dismiss | green |
+| P7 item 5 system gestures | answered at the source; 3 and 4 finger untested |
+| Tile-row scaling | green, 224 -> 249 design px, three across |
+| P3 Files import | answered except the drag itself |
+| P4 audio settings + OAuth page | green as far as sign-out allows |
+| G6 review fixes | all 14 done |
 
-### Not started
+### Next: P5, then P6
 
-- **P7 item 2, haptics.** Optional in the spec. Needs a small native bridge:
-  a `#if JUCE_IOS` native function calling `UIImpactFeedbackGenerator`
-  (`.medium` on lift, `.light` on drop), called from `ChainView`'s
-  `onDragStart` / `onDragEnd`. Cheap; simply not reached.
-- **P7 item 3.** Touch help in the info bar (`pointerdown` shows a control's
-  help, release clears it) and a value bubble on knobs while dragging, plus
-  double-tap to reset and a 44 pt knob hit area.
-- **P7 item 4.** 44 pt for everything outside the two icon-button primitives
-  (gear chips, stream tabs, preset arrows, slot `+`, account menu rows), safe
-  areas (faceplate above the home indicator), left-edge swipe back, swipe
-  down to dismiss the Settings and Tuner sheets, search field above the iOS
-  keyboard.
-- **P7 item 5.** Confirm no system gesture is intercepted (3-finger
-  undo/redo, 4-finger app switch, edge swipes).
-- **Tile-row scaling** (owner request). The lane fills the screen after P1
-  but the tiles stay 224 design px, leaving black above and below the row.
-  Scale the tile row and its `+` glyph to fill the lane with the design's
-  margins, capped so four tiles still fit across 1366 pt with horizontal
-  scroll, and keep BLOCK / SELECT TONE filling the same area.
-- **P3** Files import parity: drag-and-drop of `.nam` / `.wav` from Files in
-  Split View onto a tile, if WKWebView receives the drop. Folder import is
-  already answered: iOS cannot enumerate a security-scoped directory, so
-  Load Folder is multi-select there.
-- **P4** Audio device settings through AVAudioSession: route, input channel,
-  buffer size, sample rate. Verify the settings page renders and does not
-  crash on the Simulator. The physical Scarlett test stays with the owner.
-- **P5** Presets, tuner, undo/redo, stereo toggle, spread/align under touch.
-  Partly done incidentally: the tuner opens, per-block power works.
-- **P6** Bluetooth MIDI: enable `BluetoothMidiDevicePairingDialogue` from
-  MIDI settings on iOS and confirm it opens on the Simulator.
-- **OAuth sign-in check** (folded into P3/P4 by the coordinator): on the
-  Simulator, account menu > Sign in should open the TONE3000 authorize page
-  inside the same WebView and the `juce://` redirect should return to the
-  app. Stop at the login page and screenshot; the login is a magic link to
-  the owner. The real publishable key is already in `ui/.env` and the live
-  Trending catalogue loads, so the key and network path are known good.
+**P5 Presets, tuner, undo/redo, stereo, spread/align under touch.** Partly
+done incidentally: the tuner opens and closes (including by swipe down), undo
+and redo are 44 pt buttons in the header, per-block power works, and the
+Spread/Align advanced decks open on a touch and hold. What is actually left:
+
+- **Preset drag reorder on touch.** Untested. `PresetBar` uses the same
+  dnd-kit sortable as the chain, but its activation constraints were not
+  revisited for touch the way `ChainView`'s were, so a plain swipe in the
+  preset list may start a drag instead of scrolling. Check that first.
+- **The two preset hint strings still say "drag"** (`presetReorder`,
+  `presetDrag` in `helpText.ts`). They were deliberately left alone because
+  the gesture is unverified on touch. Fix them once the gesture is known: if
+  it needs a hold, say so, the way `toneTileHelp` does.
+- Preset save / rename / search popovers: the fields already carry
+  `.t3k-touch-field`, so they meet 44 pt; what is unchecked is whether the
+  popover stays clear of the iOS keyboard, since it sits in the header.
+- Stereo mode under touch: the pan rail, solo, invert and swap chips are all
+  covered by the 44 pt CSS rule, but the two-lane layout has never been
+  looked at on the iPad, and `STEREO_TILE_SIZE` was left at 160 when the mono
+  tile grew.
+- Undo coverage for the touch-only paths: Move left / Move right go through
+  `reorderBlocks` and are covered; a *drop* was confirmed to push history at
+  the source, but not re-checked after the touch changes.
+
+**P6 Bluetooth MIDI.** Not started. Enable
+`BluetoothMidiDevicePairingDialogue` from MIDI settings on iOS and confirm it
+opens on the Simulator. JUCE has the dialogue built in; the work is finding
+where MIDI settings render the entry and gating it on iOS.
+
+### How to work on this safely
+
+- **Reconfigure before every iOS build after a UI change.**
+  `cmake --preset ios-simulator -DT3K_IOS_BUNDLE_ID=com.bsaraiva.tone3000ios`.
+  The webview is collected by a configure-time glob and Vite hashes asset
+  names, so without it you silently run the previous bundle. Confirm with the
+  `Requested URL: /assets/main-*.css` line in `TONE3000.log`.
+- **Keep the bundle id override** on both device and simulator builds, or the
+  iPad gets a second, empty app and the owner's Documents appear to vanish.
+- **Never write scratch files into `plugin/webview`.** One left there broke a
+  later *macOS* build through the same glob.
+- **Check the build's own exit line**, not the task notification: a failed
+  macOS build was once reported as success because the wrapper exited 0.
+- **Mark state before testing a gesture.** The tile glow follows the slot, not
+  the block, so it cannot show a reorder. Bypass a block instead.
+- Keep one simulator booted; do not touch simulators you did not create.
 
 ### Commands
 
-```sh
-cd /Users/bruno.saraiva/Developer/tone3000-plugin-ios
-export DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer
+See `docs/ios.md`. The device is installed to but never launched from here;
+launching is the owner's, since only the owner can complete the magic-link
+sign-in.
 
-# UI (always rebuild after touching ui/, then rebuild the app)
-cd ui && npx tsc --noEmit -p tsconfig.app.json && npx eslint src && npm run build && cd ..
+### Needs the owner, on the iPad
 
-# iOS Simulator, Release (Debug points the WebView at localhost:5173)
-cmake --build build-ios --config Release --target TONE3000_Standalone -- -sdk iphonesimulator -quiet
-
-# macOS regression, required after every item
-cmake --build build --target TONE3000_Standalone -j 8
-
-# install + launch
-UD=332D5E88-B221-4285-A706-2895AF6CBD8C     # "QA-iPadPro12.9-6th", keep ONE simulator booted
-xcrun simctl terminate $UD com.bsaraiva.tone3000ios
-xcrun simctl install $UD build-ios/plugin/TONE3000_artefacts/Release/Standalone/TONE3000.app
-xcrun simctl launch $UD com.bsaraiva.tone3000ios
-
-# the app's log (the single most useful debugging channel)
-DATA=$(xcrun simctl get_app_container $UD com.bsaraiva.tone3000ios data)
-tail -30 "$DATA/Library/TONE3000/TONE3000.log"
-
-# screenshots come out portrait; the app is landscape
-xcrun simctl io $UD screenshot shot.png && sips -r 90 shot.png --out shot.png
-
-# device (install only unless told otherwise; Documents must survive)
-cmake --build build-ios-device --config Release --target TONE3000_Standalone -- \
-  -sdk iphoneos -allowProvisioningUpdates
-xcrun devicectl device install app --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
-  build-ios-device/plugin/TONE3000_artefacts/Release/Standalone/TONE3000.app
-xcrun devicectl device info files --device 499F7A19-3719-5E37-972C-F7DF0CA30DC6 \
-  --domain-type appDataContainer --domain-identifier com.bsaraiva.tone3000ios --username mobile
-```
-
-### Driving the Simulator
-
-The iPad is in the portrait device frame while the app renders landscape, so
-tap coordinates need converting. With the screen 1366 x 1024 pt landscape and
-the device frame 1024 x 1366 pt portrait, and a screenshot rotated 90 degrees
-clockwise for reading:
-
-```
-portrait_x = landscape_y
-portrait_y = 1366 - landscape_x
-```
-
-A long press is `control` with `action: touch_path` and two points at the same
-coordinate separated by `dt_ms`.
-
-### Traps already paid for
-
-- **"Looks unchanged" is not evidence.** Two results were misread this way.
-  M4 passed only because the `.nam` sat inside the app container, so the
-  sandbox never had to be crossed; the device then failed. P2's first drag
-  looked like a no-op but had worked, because both tiles held the same model
-  and local tone tiles render an identical file glyph. **Mark state
-  explicitly** before testing: bypass one block (dimmed glyph, lit power
-  chip) so a reorder is visible, and put test files *outside* the app
-  container when testing the picker.
-- **Debug iOS builds load `http://localhost:5173/`.** Always build Release on
-  the Simulator or you get a dead page and a confusing "navigation failed".
-- **Pointer capture hides `pointerup`.** See P7 item 2 above.
-- **`xcrun simctl privacy grant microphone` does not suppress the prompt**;
-  `AVAudioSession.requestRecordPermission` still asks. Tap it once.
-- **Never commit `ui/.env`.** It holds the real publishable key, is
-  gitignored, and must not appear in reports or docs either.
-- **Keep one simulator booted** and do not touch simulators you did not
-  create.
+1. The haptic buzz on tile lift and drop.
+2. 3 finger undo/redo and 4 finger app switching.
+3. Knob double-tap reset (proved in a browser against the same bundle, not on
+   device).
+4. Dragging a `.nam` from Files onto a tile.
+5. Whether iPadOS draws the home indicator over the app.
+6. Sign-in, which unblocks Browse, its search field, Favorites, Created, and
+   loading any tone from the catalogue.
+7. A Scarlett in Settings > System Settings (see the P4 section).
 
 ## Open issues
 
