@@ -128,7 +128,15 @@ public:
   // step is recorded. The revision only bumps when something actually
   // changed, so an identical payload is a true no-op. Returns whether any
   // block changed.
-  bool refreshToneMetadata(const juce::String& toneJsonString);
+  // `blockId` empty (the catalog sync): every block holding the payload's
+  // tone id is refreshed, and local blocks are skipped -- a same-id API
+  // tone must never overwrite a drop-loaded one. Naming one block instead
+  // targets it by id regardless of its stored tone id, which is how a local
+  // .nam adopts its TONE3000 identity (see plugin/docs/local-models.md):
+  // that block's `local` flag is carried over, so an adopted block still
+  // plays from its stash copy and stays out of the catalog sync above.
+  bool refreshToneMetadata(const juce::String& toneJsonString,
+                           const juce::String& blockId = {});
   // Switch the block's active model. Native only stores the active model, so
   // `modelData` (JSON object with id/name/model_url, paged in from the API by
   // the UI) is required and becomes the tone's new sole stored model.

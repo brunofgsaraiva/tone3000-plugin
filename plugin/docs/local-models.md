@@ -78,3 +78,65 @@ Its lifecycle is self-maintaining:
   such a load hits the embedded cache and the stash copy is missing (GC'd,
   or a different machine), `refreshLocalStashCopy` writes it back, so undo
   and retry keep working there too.
+
+## Getting the catalog identity back
+
+A `.nam` trained on TONE3000 usually reaches the plugin as a bare file:
+downloaded once, filed away, dropped in months later. It still knows what it
+is — every such file carries `metadata.name` (the model's name) and
+`metadata.modeled_by` (the author's username) — but it carries no tone id,
+so the catalog entry has to be *found*. When it is, the tile shows the real
+artwork, title, gear and author instead of the generic file glyph.
+
+Nothing about playback changes: the block still plays its stash copy, still
+works offline, and still needs no account to load. The lookup is pure
+decoration, and it runs after the file is already loaded and audible.
+
+`stashLocalBytes` lifts those two strings onto the model object
+(`nam_name` / `nam_author`) while it's already parsing the file for the A2
+check. `useLocalToneIdentity` does the rest, in the UI, because that's where
+the OAuth token lives:
+
+1. `tones/search?query=<nam_name>`, one call.
+2. Keep the hits whose `user.username` is `nam_author`. The author is the
+   discriminator, not the title: a tone's title and its models' names are
+   usually different ("Fender Vibroverb 1964 - Dumble - Two-Rock - John
+   Mayer" vs the model's much longer name). With no author on the file, fall
+   back to tones whose title the model name starts with. At most 3 survive.
+3. For each, list the tone's A2 models and take the one whose `name` is
+   `nam_name` (or the tone's only model).
+4. Download that one model and check its bytes against the local file's.
+
+Step 4 is the point. Names are not unique and a near-miss would put someone
+else's artwork on the tile, so the match is proved by content or not at all.
+The comparison is FNV-1a 64 plus the exact byte length, against the stash
+file's own name (`<hash>-<size>.nam`, above): the webview can't read the
+local bytes — they're behind a `file://` URL the DOM won't touch — so the
+only hash the UI can compare against is the one native already published in
+the `model_url`. Hashing just the *downloaded* bytes closes the loop with no
+new native surface. This is a "did we find the right tone" check rather than
+a security boundary; the bytes that play are always the local ones, and the
+worst case is the generic glyph.
+
+On a match, `refreshToneMetadata(toneJson, blockId)` writes the catalog
+payload onto that one block. The block-targeted form exists for this: the
+ordinary catalog sync matches on tone id (0 for a local tone) and refuses to
+touch local blocks at all. Native keeps the block's own `models` array and
+its `local` flag, so an adopted block keeps its `file://` model URLs, keeps
+playing from the stash, and stays exempt from the id-matched sync even
+though it now carries a real tone id. Because the merged JSON is stored tone
+JSON, the identity rides into DAW/app state, presets and undo — it survives
+restarts and later offline use with no sidecar file.
+
+Watching chain state instead of hooking a load path is what makes this work
+for every entry point at once: drops come through the UI, the tile menus'
+Load File / Load Folder never touch it, and state restore has no load call
+at all. An adopted block has artwork, so re-runs skip it.
+
+The budget per file is one search, at most three model listings and one
+download, attempted once per session — a miss, an outage or a signed-out
+user never turns into repeat traffic. Every failure is silent and leaves the
+file glyph. Only single-file local tones are looked up; a dropped folder is
+the user's own grouping, not a catalog tone. The pure selection rules are
+pinned by `ui/test/localToneIdentity.test.ts` (`npm test` in `ui/`), and the
+native side by `ToneRefreshTest.BlockTargetedRefreshAdoptsIdentityAndStaysLocal`.

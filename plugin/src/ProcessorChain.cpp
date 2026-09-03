@@ -482,7 +482,8 @@ bool TONE3000Processor::swapTone(const std::string& blockId, const juce::String&
   return true;
 }
 
-bool TONE3000Processor::refreshToneMetadata(const juce::String& toneJsonString) {
+bool TONE3000Processor::refreshToneMetadata(const juce::String& toneJsonString,
+                                            const juce::String& blockId) {
   const juce::var freshVar = juce::JSON::parse(toneJsonString);
   juce::DynamicObject* fresh = freshVar.getDynamicObject();
   if (fresh == nullptr)
@@ -496,12 +497,21 @@ bool TONE3000Processor::refreshToneMetadata(const juce::String& toneJsonString) 
   bool changed = false;
   for (const ChainSide side : {ChainSide::Left, ChainSide::Right}) {
     for (auto& block : lane(side)) {
-      if (block->type == ChainBlockType::INSERT || block->toneId != toneId)
+      if (block->type == ChainBlockType::INSERT)
         continue;
-      // Local tones have no catalog behind them; a same-id API tone is a
-      // different thing entirely and must never overwrite one.
-      if (static_cast<bool>(block->toneVar["local"]))
-        continue;
+      if (blockId.isNotEmpty()) {
+        // Targeted refresh (local identity adoption): match the block
+        // itself, not its tone id, which is 0 for a local tone.
+        if (block->id != blockId.toStdString())
+          continue;
+      } else {
+        if (block->toneId != toneId)
+          continue;
+        // Local tones have no catalog behind them; a same-id API tone is a
+        // different thing entirely and must never overwrite one.
+        if (static_cast<bool>(block->toneVar["local"]))
+          continue;
+      }
 
       // Fresh payload wholesale, except the stored models array: native
       // persists only the active model, and queueActiveModelLoad / retry /
@@ -509,6 +519,11 @@ bool TONE3000Processor::refreshToneMetadata(const juce::String& toneJsonString) 
       // payload's models list has no such guarantee.
       juce::var mergedVar = freshVar.clone();
       mergedVar.getDynamicObject()->setProperty("models", block->toneVar["models"]);
+      // `local` is the block's own truth, never the payload's: it keeps an
+      // adopted block playing from its stash copy (file:// model_url, no
+      // auth) and out of the id-matched sync above.
+      if (static_cast<bool>(block->toneVar["local"]))
+        mergedVar.getDynamicObject()->setProperty("local", true);
       const juce::String mergedJson = juce::JSON::toString(mergedVar);
       if (mergedJson == block->toneJson)
         continue;
