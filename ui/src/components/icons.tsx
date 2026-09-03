@@ -23,6 +23,7 @@ import {
   FolderClosed as LFolderClosed,
   Gauge as LGauge,
   GripVertical as LGripVertical,
+  Hand as LHand,
   Info as LInfo,
   Laptop as LLaptop,
   Link as LLink,
@@ -90,6 +91,7 @@ export const File = scaled(LFile, 'File');
 export const FolderClosed = scaled(LFolderClosed, 'FolderClosed');
 export const Gauge = scaled(LGauge, 'Gauge');
 export const GripVertical = scaled(LGripVertical, 'GripVertical');
+export const Hand = scaled(LHand, 'Hand');
 export const Info = scaled(LInfo, 'Info');
 export const Laptop = scaled(LLaptop, 'Laptop');
 export const Link = scaled(LLink, 'Link');

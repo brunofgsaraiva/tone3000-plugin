@@ -46,6 +46,7 @@ interface PluginHeaderProps {
   user: User | null;
   authenticated: boolean;
   onOpenSettings: () => void;
+  onShowGestures: () => void;
   onLogin: () => void;
   onLogout: () => void;
 }
@@ -71,6 +72,7 @@ export const PluginHeader = React.memo(function PluginHeader({
   user,
   authenticated,
   onOpenSettings,
+  onShowGestures,
   onLogin,
   onLogout,
 }: PluginHeaderProps) {
@@ -132,6 +134,7 @@ export const PluginHeader = React.memo(function PluginHeader({
           user={user}
           authenticated={authenticated}
           onOpenSettings={onOpenSettings}
+          onShowGestures={onShowGestures}
           onLogin={onLogin}
           onLogout={onLogout}
         />

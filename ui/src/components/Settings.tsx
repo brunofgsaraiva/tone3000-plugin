@@ -33,6 +33,7 @@ import {
   outlinedFieldStyle,
   sectionLabelStyle,
 } from './controls';
+import { IS_IOS } from '../hooks/useUiScale';
 import { SystemSettings } from './SystemSettings';
 import { MidiMapSettings } from './MidiMapSettings';
 
@@ -86,6 +87,8 @@ interface SettingsProps {
   onClose: () => void;
   /** True in the standalone app; enables the System Settings tab. */
   standalone: boolean;
+  /** iOS only: reopens the gestures sheet (the button is gated on IS_IOS). */
+  onShowGestures: () => void;
   /** Shared audio device state/actions (also drives the app banner). */
   device: AudioDevice;
   /** Tab to open on (defaults to System; banner actions land there too). */
@@ -177,6 +180,7 @@ const TabBar: React.FC<{
 export const Settings: React.FC<SettingsProps> = ({
   onClose,
   standalone,
+  onShowGestures,
   device,
   initialTab = 'system',
   version,
@@ -291,6 +295,17 @@ export const Settings: React.FC<SettingsProps> = ({
 
   const pluginTab = (
     <>
+      {IS_IOS && (
+        <div style={{ marginBottom: `${SECTION_GAP}rem` }}>
+          <div style={sectionLabelStyle}>Gestures</div>
+          <p style={descriptionStyle}>
+            The touch shortcuts for the chain, the knobs and the sheets.
+          </p>
+          <button style={{ ...ctaButtonStyle, marginTop: '16rem' }} onClick={onShowGestures}>
+            Show gestures
+          </button>
+        </div>
+      )}
       <ToggleRow
         label="Info Bar"
         description="Strip under the faceplate with hover tips and CPU load."
