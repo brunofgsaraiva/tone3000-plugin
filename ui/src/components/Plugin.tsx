@@ -20,7 +20,7 @@ import { Faceplate, PLATE_HEIGHT } from './Faceplate';
 import { HintBar, HINT_HEIGHT } from './HintBar';
 import { ToastProvider } from './Toast';
 import { PluginHeader } from './PluginHeader';
-import { useHintsEnabled } from './helpText';
+import { useClearHelpOnScreenChange, useHintsEnabled } from './helpText';
 import { AppBanner, useAppBanner, type BannerAction } from './AppBanner';
 import { useChromeChoreography, BANNER_ANIM_MS } from '../hooks/useChromeChoreography';
 import { DbMeter } from './DbMeter';
@@ -290,6 +290,13 @@ export const Plugin: React.FC = () => {
   // screens keeps its visible 44 pt control: the gesture is an extra route,
   // not a replacement, which is both the HIG rule and what keeps the app
   // usable with a mouse or VoiceOver. No-ops off iOS.
+  // A pressed control's help must not ride a navigation into the next
+  // screen (see useClearHelpOnScreenChange). The BLOCK / SIGNAL CHAIN switch
+  // lives in ChainView and clears itself the same way.
+  useClearHelpOnScreenChange(
+    `${showSettings}|${showTuner}|${showToneBrowser}|${showGestures}`
+  );
+
   useEdgeSwipeBack(showToneBrowser, handleBrowserClose);
   useSwipeDownDismiss(showTuner, closeTuner);
   useSwipeDownDismiss(showSettings, () => setShowSettings(false));
