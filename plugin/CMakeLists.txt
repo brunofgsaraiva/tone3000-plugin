@@ -160,10 +160,6 @@ endif()
 #   story on iOS is the Files app. These two put the app's Documents folder in
 #   Files (UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace) so a user
 #   can drop captures in, and let juce::FileChooser open them in place.
-# - REQUIRES_FULL_SCREEN: the UI now fits itself to the viewport width (see
-#   useUiScale), so Split View would render; the key stays because the layout
-#   is designed for a full landscape iPad and has not been tried at a Split
-#   View width. Drop it once someone has.
 # - IPAD_SCREEN_ORIENTATIONS: the faceplate is landscape by design. iPhone is
 #   out of scope for this PR, so no iPhone orientation list.
 # The microphone and Bluetooth permission strings the plugin already declares
@@ -178,7 +174,6 @@ if (T3K_IOS)
         BACKGROUND_AUDIO_ENABLED TRUE
         FILE_SHARING_ENABLED TRUE
         DOCUMENT_BROWSER_ENABLED TRUE
-        REQUIRES_FULL_SCREEN TRUE
         IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
     )
 endif()
