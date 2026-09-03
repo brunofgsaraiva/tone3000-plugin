@@ -442,6 +442,14 @@ public:
   static bool readPersistedWebInspectorEnabled();
   static void persistWebInspectorEnabled(bool enabled);
 
+  // The address the user last typed on the TONE3000 sign-in page, remembered
+  // so the next login opens pre-filled (OAuth `login_hint`). GET
+  // /api/v1/user does not return an email, so this is the only source there
+  // is. Machine-wide, like the other preferences above; empty string clears
+  // it. Platform-neutral storage: only the iOS user script writes it today.
+  static juce::String readPersistedLoginEmail();
+  static void persistLoginEmail(const juce::String& email);
+
 private:
   // One chain of blocks. Two of these make up `lanes` (declared below).
   using Lane = std::vector<std::unique_ptr<ChainBlock>>;

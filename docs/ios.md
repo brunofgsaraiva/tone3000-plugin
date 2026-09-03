@@ -115,9 +115,10 @@ running once the view has navigated away, so `useEdgeSwipeBack` cannot cover
 these pages. `IosWebViewGestures` sets `allowsBackForwardNavigationGestures`
 on the WKWebView instead, which JUCE never does.
 
-**The login page's pre-filled email and auto-sent code are the site's, not
-ours.** The app sets neither `otp_only` nor `login_hint`; both come from the
-tone3000.com session on that device. Signed out on the Simulator the page
+**The login page's pre-filled email and auto-sent code are largely the
+site's, not ours.** The app never sets `otp_only`, and until a first sign-in
+it sets no `login_hint` either; both come from the tone3000.com session on
+that device. Signed out on the Simulator the page
 opens with an empty field and a disabled **Send Code**. The account pill is
 one button opening one menu (Settings, Gestures, Login/Logout), so no single
 tap enters a login.
@@ -176,6 +177,39 @@ from what ships. Not proved here: the real OTP page's DOM was never seen
 (reaching it needs a real address and a real code), so the selector is
 written against the shape the owner described and the owner validates it on
 the device.
+
+### Remembering the address for `login_hint`
+
+`GET /api/v1/user` returns no email (`id`, `username`, `display_name`,
+`is_verified`, `avatar_url`, `url`, `bio`, `links`, `created_at`,
+`updated_at`), so the identity cache can never supply the OAuth `login_hint`
+the authorize endpoint documents. The sign-in page is the only place the
+address exists.
+
+A third iOS-only user script, hostname-guarded like the one above, therefore
+captures it: on `submit` of a form containing an `input[type=email]` or
+`input[name=email]`, and on any scan that finds such a field already filled
+(the code step renders a hidden `input[name=email]` carrying the address),
+which the same cheap `MutationObserver` re-runs after a re-render. The value
+is validated as an address in the page and again natively, sent once per
+distinct address, and never logged. It rides the raw `__juce__invoke`
+envelope with `resultId: -1`, exactly as the console shim does, because
+`window.__JUCE__.backend` only exists once the plugin bundle has loaded and
+on a tone3000.com page it has not.
+
+Native stores it in the shared settings file under `t3kLoginEmail`
+(`TONE3000Processor::readPersistedLoginEmail` / `persistLoginEmail`) and
+exposes `getLoginEmail` / `setLoginEmail` on every platform, so desktop could
+use the same plumbing; only the iOS script writes it today. `useToneSession`
+prefers it over the old identity-cache read when starting a login flow, and
+Logout clears it, so a deliberate sign-out still lands on an empty field.
+
+The marker log `t3k: login email capture active on <host>` confirms the
+script is live: open avatar > Login on the Simulator and grep the app log for
+it. Covered by `ui/test/loginEmail.test.ts`, which extracts the script
+between its `__T3K_LOGIN_EMAIL_*` markers and runs that exact source. Not
+proved here: the end-to-end round trip (type an address, sign out, next login
+pre-filled) needs a real address and is the owner's test on the device.
 
 ## Onboarding
 

@@ -54,6 +54,10 @@ interface UseToneSessionOptions {
 export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessionOptions) {
   const setAccessToken = useNativeFunction<boolean>('setAccessToken');
   const clearAuthCookies = useNativeFunction<boolean>('clearAuthCookies');
+  // The address typed on the sign-in page, remembered natively (see
+  // TONE3000Processor::persistLoginEmail). Empty string clears it.
+  const getLoginEmail = useNativeFunction<string>('getLoginEmail');
+  const setLoginEmail = useNativeFunction<boolean>('setLoginEmail');
 
   // Push the latest access token down to native. Called right after the
   // OAuth flows and again whenever T3KClient transparently refreshes.
@@ -95,10 +99,18 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
   // can never start against a stale Bearer.
   // Wrap the raw flow so every login carries the hint, and no call site has
   // to remember to ask for it.
+  // Native's remembered address wins: it is what the user actually typed on
+  // the sign-in page (the iOS user script captures it), while the identity
+  // cache only ever has an email when the API happens to return one.
   const startLoginFlowWithHint = useCallback(
-    (options?: { openBrowser?: boolean }) =>
-      startLoginFlow({ ...options, loginHint: readCachedLoginHint() }),
-    [startLoginFlow]
+    async (options?: { openBrowser?: boolean }) => {
+      const remembered = await getLoginEmail();
+      const loginHint =
+        (typeof remembered === 'string' && remembered.length > 0 ? remembered : undefined) ??
+        readCachedLoginHint();
+      startLoginFlow({ ...options, loginHint });
+    },
+    [getLoginEmail, startLoginFlow]
   );
 
   const ensureNativeAuth = useCallback(async () => {
@@ -162,8 +174,9 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
       // Non-fatal; the stale cache is only read when a session is present.
     }
     setUser(null);
-    await Promise.all([pushAccessTokenToNative(''), clearAuthCookies()]);
-  }, [clearAuthCookies, client, pushAccessTokenToNative]);
+    // A deliberate sign-out must not leave the next login pre-filled.
+    await Promise.all([pushAccessTokenToNative(''), clearAuthCookies(), setLoginEmail('')]);
+  }, [clearAuthCookies, client, pushAccessTokenToNative, setLoginEmail]);
 
   /**
    * Fetch a tone's full model catalog (tones max out at 300 models, so one

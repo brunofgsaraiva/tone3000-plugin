@@ -815,6 +815,28 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
 #endif
             return juce::var(true);
           }))
+      // --- Login hint ------------------------------------------------------
+      // The address the user typed on the TONE3000 sign-in page, captured by
+      // the iOS user script below and replayed as OAuth's `login_hint` on the
+      // next login. Registered on every platform so the UI can call it
+      // unconditionally; only iOS writes it today.
+      .withNativeFunction(
+          "getLoginEmail", guarded(0, juce::var(""), [](const juce::Array<juce::var>&) {
+            return juce::var(TONE3000Processor::readPersistedLoginEmail());
+          }))
+      .withNativeFunction(
+          // (email): "" clears it (Logout). Anything that is not a plausible
+          // address is dropped rather than stored, so a stray page value can
+          // never end up in the settings file.
+          "setLoginEmail", guarded(1, false, [](const juce::Array<juce::var>& args) {
+            const juce::String email = args[0].toString().trim();
+            if (email.isNotEmpty() &&
+                !(email.length() <= 254 && email.containsChar('@') && !email.containsChar(' ') &&
+                  email.fromLastOccurrenceOf("@", false, false).containsChar('.')))
+              return juce::var(false);
+            TONE3000Processor::persistLoginEmail(email);
+            return juce::var(true);
+          }))
 #if JUCE_IOS
       // Platform flag for the web UI, injected at document start so the very
       // first paint already knows. iOS is the only build whose window is a
@@ -986,6 +1008,59 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
   } catch (err) {}
 })();
 // __T3K_OTP_HELPER_END__
+          )JS")
+      // Remember the address typed on the sign-in page so the next login can
+      // pre-fill it (OAuth `login_hint`). GET /api/v1/user never returns an
+      // email, so the page itself is the only place it exists. iOS only: this
+      // is the only platform whose login happens inside the plugin webview.
+      // See docs/ios.md.
+      .withUserScript(R"JS(
+// __T3K_LOGIN_EMAIL_BEGIN__
+(function () {
+  try {
+    if (!/(^|\.)tone3000\.com$/.test(location.hostname) || window.__t3kLoginEmail) return;
+    window.__t3kLoginEmail = true;
+    console.log('t3k: login email capture active on ' + location.hostname);
+    var last = '';
+    var valid = function (v) {
+      return typeof v === 'string' && v.length > 3 && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    };
+    var send = function (v) {
+      var email = String(v == null ? '' : v).trim();
+      if (!valid(email) || email === last) return false;
+      last = email;
+      var payload = { name: 'setLoginEmail', params: [email], resultId: -1 };
+      // Same envelope as the console shim above: backend only exists once the
+      // plugin bundle has loaded, which it has not on a tone3000.com page.
+      if (window.__JUCE__.backend) window.__JUCE__.backend.emitEvent('__juce__invoke', payload);
+      else window.__JUCE__.postMessage(JSON.stringify({ eventId: '__juce__invoke', payload: payload }));
+      console.log('t3k: login email remembered');
+      return true;
+    };
+    var scan = function (root) {
+      try {
+        var f = (root || document).querySelectorAll('input[type=email], input[name=email]');
+        for (var i = 0; i < f.length; i++)
+          if (send(f[i].value)) return true;
+      } catch (err) {}
+      return false;
+    };
+    document.addEventListener('submit', function (e) { scan(e.target); }, true);
+    var pending = false;
+    var start = function () {
+      // The code step renders a hidden input[name=email] carrying the address,
+      // which also covers a submit the site handles without a submit event.
+      scan();
+      new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () { pending = false; scan(); });
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start) : start();
+  } catch (err) {}
+})();
+// __T3K_LOGIN_EMAIL_END__
           )JS")
 #endif
       ;
