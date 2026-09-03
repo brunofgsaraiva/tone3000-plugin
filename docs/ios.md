@@ -136,10 +136,25 @@ focus, so only the first fills and the login cannot be completed on the iPad.
 `EditorWebViewSetup.cpp` therefore injects a second iOS-only user script,
 guarded at runtime by `location.hostname` so it only ever runs on
 tone3000.com. It finds a run of four to eight single-character inputs sharing
-a parent, and on a paste, or on a single input event carrying more than one
-digit, spreads the digits across the boxes in order, writing each through the
-native `HTMLInputElement.value` setter and dispatching `input` and `change`
-so the site's React state sees a real edit. It also tags the first box with
+a parent, and spreads the digits across the boxes in order, writing each
+through the native `HTMLInputElement.value` setter and dispatching `input`
+and `change` so the site's React state sees a real edit. Three paths reach
+that: a `paste`; a `beforeinput` whose `data` carries two or more digits;
+and an `input` event whose box already holds more than one digit.
+
+`beforeinput` is the one that catches the keyboard's one-time-code
+suggestion. The owner confirmed on the iPad that paste alone was not enough:
+the real page is six inputs with `maxlength=1 inputmode=numeric
+pattern=[0-9]*` in `div.CodeInput_container__gDtKt` beside a hidden
+`input#token maxlength=6 name=token`, and the autofill inserts into the
+focused box where WebKit clips it to one character before `input` fires, so
+the multi-character `input` path never saw the code. `beforeinput` runs
+before the clip. Belt and braces, tagging the first box also relaxes its
+`maxlength` to the group size, so an autofill that somehow bypasses
+`beforeinput` still lands whole; the `input` path then spreads it and
+restores `maxlength=1`. The group scan treats a box carrying
+`data-t3k-otp` as one of its own, so the relaxed box is never lost from its
+own group. It also tags the first box with
 `autocomplete="one-time-code"` and `inputmode="numeric"` so iOS offers the
 suggestion at all, and re-tags after re-renders through a cheap
 `MutationObserver`. The whole script is wrapped in `try`/`catch` and sets
@@ -154,7 +169,7 @@ through the console-forwarding shim. That marker,
 `t3k: otp paste helper active on <host>`, is the cheapest confirmation that
 it is live: open avatar > Login on the Simulator and grep the app log for it.
 
-The distributing logic is covered by `ui/test/otpPaste.test.ts`, which
+All three paths are covered by `ui/test/otpPaste.test.ts`, which
 extracts the script from the C++ between its `__T3K_OTP_HELPER_*` markers and
 runs that exact source against a small fake DOM, so the test cannot drift
 from what ships. Not proved here: the real OTP page's DOM was never seen

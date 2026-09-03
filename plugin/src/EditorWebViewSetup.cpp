@@ -901,6 +901,7 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
     var busy = false, pending = false;
     var isBox = function (el) {
       if (!el || el.tagName !== 'INPUT') return false;
+      if (el.hasAttribute('data-t3k-otp')) return true;
       return el.maxLength === 1 || (el.getAttribute('inputmode') || '') === 'numeric';
     };
     var groupOf = function (el) {
@@ -926,6 +927,7 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
         var last = Math.min(start + digits.length, group.length) - 1;
         var next = group[last + 1] || group[last];
         if (next && next.focus) next.focus();
+        if (group[start].maxLength > 1) group[start].setAttribute('maxlength', '1');
       } finally {
         busy = false;
       }
@@ -937,6 +939,16 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
         var g = groupOf(e.target);
         var cd = e.clipboardData || window.clipboardData;
         if (g && cd && distribute(g, g.indexOf(e.target), cd.getData('text'))) e.preventDefault();
+      } catch (err) {}
+    }, true);
+    document.addEventListener('beforeinput', function (e) {
+      try {
+        if (busy || !isBox(e.target)) return;
+        if (e.inputType && e.inputType.indexOf('insert') !== 0) return;
+        var d = String(e.data == null ? '' : e.data).replace(/\D/g, '');
+        if (d.length < 2) return;
+        var g = groupOf(e.target);
+        if (g && distribute(g, g.indexOf(e.target), d)) e.preventDefault();
       } catch (err) {}
     }, true);
     document.addEventListener('input', function (e) {
@@ -958,6 +970,7 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
           g[0].setAttribute('data-t3k-otp', '1');
           g[0].setAttribute('autocomplete', 'one-time-code');
           g[0].setAttribute('inputmode', 'numeric');
+          g[0].setAttribute('maxlength', String(g.length));
         }
       } catch (err) {}
     };
