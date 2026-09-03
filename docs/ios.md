@@ -122,6 +122,46 @@ opens with an empty field and a disabled **Send Code**. The account pill is
 one button opening one menu (Settings, Gestures, Login/Logout), so no single
 tap enters a login.
 
+### The six-box code entry, fork-local mitigation
+
+**This is a workaround in our app for a bug in the site. The proper fix
+belongs on tone3000.com and should replace this the moment it lands.**
+
+The code step of the email sign-in renders the six digits as six separate
+single-character inputs. A desktop keyboard types into them one by one and
+they behave. On iOS the keyboard's one-time-code suggestion, and pasting the
+code out of the mail app, deliver all six characters to whichever box has
+focus, so only the first fills and the login cannot be completed on the iPad.
+
+`EditorWebViewSetup.cpp` therefore injects a second iOS-only user script,
+guarded at runtime by `location.hostname` so it only ever runs on
+tone3000.com. It finds a run of four to eight single-character inputs sharing
+a parent, and on a paste, or on a single input event carrying more than one
+digit, spreads the digits across the boxes in order, writing each through the
+native `HTMLInputElement.value` setter and dispatching `input` and `change`
+so the site's React state sees a real edit. It also tags the first box with
+`autocomplete="one-time-code"` and `inputmode="numeric"` so iOS offers the
+suggestion at all, and re-tags after re-renders through a cheap
+`MutationObserver`. The whole script is wrapped in `try`/`catch` and sets
+`window.__t3kOtpHelper` once, so it can neither throw into the page nor
+double-install.
+
+Two constraints shape it. JUCE joins every `withUserScript` into one
+`WKUserScript` at document start, main frame only, so the script defers its
+own DOM work to `DOMContentLoaded` rather than asking for an injection time
+JUCE does not expose; and it sits last in the chain so its marker log passes
+through the console-forwarding shim. That marker,
+`t3k: otp paste helper active on <host>`, is the cheapest confirmation that
+it is live: open avatar > Login on the Simulator and grep the app log for it.
+
+The distributing logic is covered by `ui/test/otpPaste.test.ts`, which
+extracts the script from the C++ between its `__T3K_OTP_HELPER_*` markers and
+runs that exact source against a small fake DOM, so the test cannot drift
+from what ships. Not proved here: the real OTP page's DOM was never seen
+(reaching it needs a real address and a real code), so the selector is
+written against the shape the owner described and the owner validates it on
+the device.
+
 ## Onboarding
 
 The gestures above are not discoverable on their own, so the app explains them
