@@ -580,20 +580,28 @@ export const Settings: React.FC<SettingsProps> = ({
           <button onClick={handleCopyLogs} style={ctaButtonStyle}>
             Copy Logs
           </button>
-          <button
-            onClick={handleRevealLogs}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: SUBTLE,
-              fontSize: '12rem',
-              cursor: 'pointer',
-              padding: 0,
-              textAlign: 'left',
-            }}
-          >
-            Reveal log file on disk
-          </button>
+          {/* Desktop only. "Reveal log file on disk" describes Finder and
+              Explorer, and iPadOS has neither: juce::File::revealToUser is a
+              no-op there, so the row promised something it could not do. It
+              is dropped rather than reworded, because a wording that fits
+              iPadOS would still need a share sheet behind it, and Copy Logs
+              above already gives the same log to the same places. */}
+          {!IS_IOS && (
+            <button
+              onClick={handleRevealLogs}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: SUBTLE,
+                fontSize: '12rem',
+                cursor: 'pointer',
+                padding: 0,
+                textAlign: 'left',
+              }}
+            >
+              Reveal log file on disk
+            </button>
+          )}
           {logStatus && (
             <p style={{ ...descriptionStyle, fontSize: '12rem', margin: 0 }}>{logStatus}</p>
           )}
