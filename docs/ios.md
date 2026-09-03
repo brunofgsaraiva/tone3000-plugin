@@ -96,6 +96,7 @@ complete (see Known gaps).
 | Per-block EQ | faders and curve dots both drag; the response redraws |
 | Block swap / remove | swap opens SELECT TONE for that block; remove takes it out |
 | Block info / share | **not tested**: both controls exist only for a catalogue tone |
+| Bluetooth MIDI pairing | **not testable on the Simulator**: JUCE compiles the dialogue out under `TARGET_IPHONE_SIMULATOR`, so the button is hidden there. It is wired (System Settings → MIDI Inputs → **Bluetooth MIDI** → `BluetoothMidiDevicePairingDialogue::open()`) and the app carries `NSBluetoothAlwaysUsageDescription` |
 
 ## Platform notes worth knowing
 
