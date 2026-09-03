@@ -873,7 +873,35 @@ copy was not even rewritten by the reconfigure, which is CMake saying the
 inputs produced the same bytes. Every iOS plist key lives inside
 `if (T3K_IOS)`, which no macOS configure sets.
 
-### Tile-row scaling: the two constraints contradict each other
+### Tile-row scaling (owner request)
+
+**Decision: keep three tiles fully visible and grow into the lane** (owner,
+after the measurements below). `monoTileSize` in `ChainView` takes the lane
+band's real size from a `ResizeObserver` (the width left over is whatever the
+two dB meter columns do not take, so it is measured, not derived), converts to
+design px, and picks the smaller of the width three tiles allow and the lane
+height less a 40 px margin, floored at the design's own 224 so it can only
+grow. `plusIconSize` already scales off the tile, so the `+` glyph follows.
+Stereo, BLOCK and SELECT TONE are untouched. `IS_IOS`-gated: desktop keeps a
+flat 224.
+
+Measured from Simulator screenshots, in points off the drawn borders:
+
+| | before | after |
+| --- | --- | --- |
+| tile pitch | 331 | 364 |
+| tile | 299 (224 design px) | 332 (**249 design px**) |
+| gaps between tiles at | 152, 483, 814, 1144 | 482, 846, 1210 |
+| fully visible | 3 | 3 |
+
+Screenshots: `p7-tile-row-before.png`, `p7-tile-row-after.png`.
+
+The growth is 11 percent because the *width* cap binds, not the height: the
+lane band is 560 design px tall but three tiles across only allow 249. Filling
+the height would mean roughly 500 design px and two tiles per screen. The
+numbers that led to the decision:
+
+#### The two constraints as originally written contradict each other
 
 Measured off a Simulator screenshot of the iPad Pro 12.9 (points, from the
 drawn borders, not from the source):
@@ -898,8 +926,7 @@ The cap as written cannot be met at the same time. Four tiles across need
 while "fill the lane height" requires making them much larger. Four across is
 already not true today.
 
-Not implemented, deliberately: it needs the owner to say which constraint
-wins. The three readings, cheapest first:
+Options put to the owner, who chose 2 with N=3:
 
 1. **Height wins.** Grow the tile toward the lane height (up to roughly 500
    design px) and accept two per screen with horizontal scroll. Biggest
