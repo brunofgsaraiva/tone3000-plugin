@@ -1078,6 +1078,53 @@ Note the screenshots were taken with the app in an iPadOS 26 window rather
 than full screen; the simulator reboots into windowed mode and the app follows.
 That is presentation only, and unrelated to the plist change.
 
+## P5 Presets, tuner, undo/redo, stereo, spread/align under touch
+
+### The blocker found first: every tap on a chain tile was dead
+
+Not on the P5 list, but nothing else on it could be tested until it was fixed.
+On the Simulator, at the tip of `ios-spike`, a loaded chain tile answered
+**nothing**: tapping the face did not open the block, and power, `...`, swap
+and trash all did nothing. An *empty* slot's `+` still opened SELECT TONE, and
+press-and-hold on a tile still opened the tile menu, which is what made it
+confusing.
+
+Diagnosed with a temporary global listener logging every pointer/mouse/click
+event into `TONE3000.log` (the same trick the haptics bridge used). The click
+was firing, was not `defaultPrevented`, and its target was a `DIV` - never the
+`BUTTON` under the finger, even with the tap landing on the power glyph's
+measured centre.
+
+**Cause.** dnd-kit stamps `role="button"` on a draggable activator that is not
+already a `<button>` - i.e. on the chain tile's wrapper. P7 item 4's 44 pt rule
+matches `[role='button']` and hangs a `::after` hit expander on it. On a tile
+that pseudo-element is `width: max(100%, 44px)` = the whole 249 px tile, it is
+last in tree order, and it therefore paints over the tile's own chrome and
+takes every tap. `pointerdown` still reaches the wrapper, which is why the
+long-press menu survived and hid the regression through P7.
+
+**Fix**, in `index.css`, one rule:
+
+```css
+html.t3k-ios [role='button'][aria-roledescription='draggable']::after {
+  content: none;
+}
+```
+
+Both attributes, not one: dnd-kit adds `aria-roledescription="draggable"` to
+every activator but adds `role` only when the activator is not a `<button>`,
+so the pair matches exactly the elements that were pulled into the rule by
+accident and leaves a real drag handle that is a button - the preset rows'
+14 px grip - its expander. A tile is 249 px, so the expander was never adding
+reach there in the first place.
+
+Evidence: `docs/ios-spike/p5-tile-tap-fix.png` (block 1 bypassed from its tile
+power button: filled chip, glyph at 0.35) and `docs/ios-spike/p5-block-detail.png`
+(a tap on block 2 opens BLOCK, which also gives the model name - the marker
+this file said the tile glow could not provide).
+
+macOS Release regression build after this item: green, 0 errors.
+
 ## Handoff
 
 State as of the tip of `ios-spike`. Everything below is either done and

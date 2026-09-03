@@ -313,6 +313,20 @@ html.t3k-ios .knob::after {
   pointer-events: auto;
 }
 
+/* dnd-kit stamps role="button" on a draggable surface that is not already a
+   <button> (a chain tile), which pulled it into the rule above. The expander
+   is a *pseudo-element of the tile*, so it paints over the tile's own chrome
+   and takes every tap: the block would not open and power / ... / swap /
+   trash were dead, while press-and-hold, which only needs pointer events on
+   the tile, still worked. A tile is 249 px, far past 44, so the expander was
+   never adding reach there anyway. Scoped by the pair of attributes so a
+   drag handle that really is a <button> (the preset rows' grip, 14 px) keeps
+   its expander: dnd-kit adds `role` only when the activator is not a button,
+   and `aria-roledescription` on every activator. */
+html.t3k-ios [role='button'][aria-roledescription='draggable']::after {
+  content: none;
+}
+
 /* Text fields cannot carry a pseudo-element, so the field itself has to grow,
    which does change layout. It is therefore opt-in: standalone rows (preset
    name, save name, preset search, MIDI CC) take the class, while the inline
