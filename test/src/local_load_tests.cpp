@@ -89,6 +89,52 @@ TEST(LocalLoadTest, FolderLoadsAsOneTonePerFileModelsSurviveSwitch) {
   EXPECT_EQ(block["tone"]["models"].size(), 2);
 }
 
+// The identity a TONE3000-trained .nam carries (metadata.name /
+// modeled_by, lifted onto the model at stash time) has to survive the trim
+// into the tone summary: the summary is all the webview ever sees of a
+// model, and it's where useLocalToneIdentity reads the name and author it
+// searches the catalog with. Local models only, like model_url.
+TEST(LocalLoadTest, NamIdentityRidesTheSummaryForLocalModelsOnly) {
+  TONE3000Processor proc;
+  // a2-amp-cab-test.nam was trained on TONE3000 and names itself and its
+  // author; a2-amp-test.nam has both metadata fields null.
+  const juce::var res = proc.loadLocalTone(
+      "My Pack", filesOf({testFileEntry("a2-amp-test.nam"), testFileEntry("a2-amp-cab-test.nam")}));
+  EXPECT_TRUE(res["error"].isVoid()) << res["error"].toString().toStdString();
+  ASSERT_TRUE(waitForChainLoaded(proc));
+
+  const juce::var models = firstToneBlock(proc)["tone"]["models"];
+  ASSERT_EQ(models.size(), 2);
+  EXPECT_EQ(models[1]["nam_name"].toString(), juce::String("MRSH JT45RS I Crunch BAL2 CAB"));
+  EXPECT_EQ(models[1]["nam_author"].toString(), juce::String("amalgamaudio"));
+  // A file that says nothing about itself stays anonymous: the UI reads a
+  // missing nam_name as "no lookup", never as an empty search.
+  EXPECT_TRUE(models[0]["nam_name"].isVoid());
+  EXPECT_TRUE(models[0]["nam_author"].isVoid());
+
+  // A catalog tone is not local, so its summary must not grow the fields
+  // even when the stored model happens to carry them.
+  ChainTestProcessor catalogProc;
+  auto catalogBlock = makeIrBlockTree("blk-catalog", 1, 100);
+  catalogBlock.setProperty("toneJson",
+                           "{\"id\":1,\"title\":\"Test IR\",\"format\":\"ir\","
+                           "\"models\":[{\"id\":100,\"name\":\"cab\","
+                           "\"model_url\":\"https://test.invalid/cab.wav\","
+                           "\"nam_name\":\"Some Capture\",\"nam_author\":\"someone\"}]}",
+                           nullptr);
+  juce::ValueTree state("ChainSnapshot");
+  juce::ValueTree left("ChainBlocks");
+  left.appendChild(catalogBlock, nullptr);
+  state.appendChild(left, nullptr);
+  catalogProc.restoreFromTree(state);
+  ASSERT_TRUE(waitForChainLoaded(catalogProc));
+
+  const juce::var catalogModel = firstToneBlock(catalogProc)["tone"]["models"][0];
+  EXPECT_EQ(catalogModel["name"].toString(), juce::String("cab"));
+  EXPECT_TRUE(catalogModel["nam_name"].isVoid());
+  EXPECT_TRUE(catalogModel["nam_author"].isVoid());
+}
+
 TEST(LocalLoadTest, DropOnExistingToneBlockSwapsInPlace) {
   TONE3000Processor proc;
   const juce::var first =
