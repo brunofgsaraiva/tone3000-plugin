@@ -1,4 +1,5 @@
 #include "Editor.h"
+#include "IosAppLifecycle.h"
 #include "IosWebViewGestures.h"
 #include "Processor.h"
 
@@ -128,6 +129,8 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
       mainWebView->goToURL(home);
   };
   mainWebView->onRemotePageChanged = [this](bool remote) { setBrowserChromeVisible(remote); };
+
+  lifecycleObserver = IosAppLifecycle::observeBackgrounding([] { saveStandaloneState(); });
 #endif
 
   // Bespoke audio settings (standalone only): the controller listens to the
@@ -190,6 +193,22 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
 }
 
 #if JUCE_IOS
+void TONE3000Editor::saveStandaloneState() {
+#if JucePlugin_Build_Standalone && ! JUCE_USE_CUSTOM_PLUGIN_STANDALONE_APP
+  // The wrapper owns the state blob and where it goes ("filterState" in the
+  // app's PropertiesFile), so ask it rather than duplicating either. The
+  // explicit flush matters: the file's own auto-save timer will not fire on a
+  // process the OS is about to suspend or kill.
+  auto* holder = juce::StandalonePluginHolder::getInstance();
+  if (holder == nullptr)
+    return;
+  holder->savePluginState();
+  if (auto* file = dynamic_cast<juce::PropertiesFile*>(holder->settings.get()))
+    file->saveIfNeeded();
+  juce::Logger::writeToLog("[State] Saved on background");
+#endif
+}
+
 void TONE3000Editor::setBrowserChromeVisible(bool visible) {
   if (browserChrome == nullptr || browserChrome->isVisible() == visible)
     return;
@@ -261,6 +280,10 @@ void TONE3000Editor::timerCallback() {
 
 TONE3000Editor::~TONE3000Editor() {
   stopTimer();
+#if JUCE_IOS
+  IosAppLifecycle::stopObserving(lifecycleObserver);
+  lifecycleObserver = nullptr;
+#endif
   // The mapper outlives the editor (it's the processor's); detach our webview
   // hook before the webview dies.
   processor.midiMapper.onChanged = nullptr;
