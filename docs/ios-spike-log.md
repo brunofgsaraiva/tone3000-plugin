@@ -1012,6 +1012,72 @@ it. If the tile shows a dashed drop border while the file is over it, the
 whole path works; if it does not, WKWebView is not delivering the drag and the
 Load File rows stay the only route, which is already the supported one.
 
+## P4 Audio device settings, and the OAuth check
+
+### The settings page renders, and it is the real AVAudioSession stack
+
+Settings > System Settings on the Simulator
+(`p4-system-settings-audio.png`) shows, with no crash and no placeholder:
+
+- **Hear Yourself** toggle.
+- **AUDIO INTERFACE > Device**: `iOS Audio`, described as "This driver handles
+  input and output together", which is AVAudioSession's single-route model
+  rather than the separate in/out devices macOS shows.
+- **Input Channel**: a Mono / Stereo segmented control, with channels `1 Left`
+  and `2 Right` as radio rows, each with its own live level meter.
+- **Output Device** with a **Test** button.
+- **Buffer Size**, with the usual latency-versus-crackle copy.
+
+So the page is not a desktop leftover: it reflects what iOS actually exposes.
+
+### What the owner should see with a Scarlett attached
+
+Plug the Scarlett into the iPad (USB-C, or Lightning plus a powered hub) and
+open Settings > System Settings. AVAudioSession replaces the built-in route
+with the interface, so:
+
+- **Device** should stop saying just `iOS Audio` and name the Scarlett, or at
+  least stay on the single combined driver while the *channels* below change.
+  It is the channel list that proves the route, not the driver name.
+- **Input Channel** should offer the interface's inputs, so a 2i2 gives two,
+  and picking `1 Left` should make that meter move when you play into input 1
+  and leave `2 Right` still. That per-channel meter is the fastest check that
+  the right jack is armed.
+- **Output Device** should follow the interface; **Test** should come out of
+  its monitors or headphones, not the iPad speaker.
+- **Buffer Size** should offer the interface's supported sizes. The iPad's own
+  route tends to sit at 48 kHz; the log line `prepareToPlay: sampleRate=...`
+  in `TONE3000.log` says what was actually opened, and is worth checking after
+  plugging in, since a mismatch there is what usually explains crackle.
+
+If the mic permission prompt has never been answered, input is silent with no
+error: the Settings banner covers that case (see AudioPermissions).
+
+Not verifiable here: the Simulator has no audio interface, so everything above
+is what the code and AVAudioSession imply, not something seen.
+
+### OAuth: the sign-in page opens inside the app's WebView
+
+Account menu > **Login** loads the TONE3000 "Log In or Create Account" page in
+the app's own in-app browser, with its back / reload / close chrome around it
+(`p4-signin-page-in-webview.png`, the account slug blacked out). No external
+Safari, no bounce out of the app.
+
+The flow stops there on purpose: TONE3000 signs in with a magic link emailed
+to the owner, so only the owner can finish it. Everything behind the login is
+therefore still untested on iOS: the Browse catalogue and its search field,
+Favorites, Created, and **loading a tone from Trending, which opens this same
+login page while signed out**.
+
+The redirect URI question is already answered for this account: no URI
+restrictions are set, so `juce://juce.backend/index.html` needs no
+registration. An account that does restrict URIs would have to register
+whichever origin the iOS build serves.
+
+Note the screenshots were taken with the app in an iPadOS 26 window rather
+than full screen; the simulator reboots into windowed mode and the app follows.
+That is presentation only, and unrelated to the plist change.
+
 ## Handoff
 
 State as of commit `5193cf1` on `ios-spike`. **Superseded**: P7 items 3 and
