@@ -70,9 +70,36 @@ Simulator screenshots come out portrait while the app renders landscape.
 No gesture is the only route to anything: every action above also has a
 visible control, per the HIG.
 
+The player-facing wording of this table lives in
+`ui/src/components/gestureGuide.ts` and is what the Gestures sheet renders
+(see Onboarding). Reword a rule in both places or in neither.
+
 Every touch target meets 44 pt through one rule in `index.css` under
 `html.t3k-ios`: an invisible `::after` at `max(100%, 44px)`, centred and out
 of flow, so no layout changes.
+
+## Onboarding
+
+The gestures above are not discoverable on their own, so the app explains them
+once. One sheet, no per-screen overlays: **Gestures** lists every touch rule as
+a glyph and one sentence in the player's own language, in the same black
+takeover shell as Settings, dismissed by the `X` or by swiping down.
+
+Three ways in, all `IS_IOS` only, so desktop renders nothing and grows no menu
+item:
+
+- automatically, the first time the UI boots on a device with no stored flag;
+- **Gestures** in the account menu, next to Settings;
+- **Show gestures** in Settings > Plugin Settings.
+
+The flag is `t3k.gesturesSeen` in the webview's localStorage, through the same
+`uiPreferences` store as the other per-machine view preferences, so it never
+rides presets, undo or automation. It is set when the sheet opens, not when it
+closes: a sheet swiped away or killed with the app has still been shown. The
+**Show on next launch** toggle inside the sheet clears it again.
+
+The decision to auto-open is the pure `shouldAutoOpenGestures(isIos, seen)` in
+`ui/src/components/gestureGuide.ts`, covered by `ui/test/gestureGuide.test.ts`.
 
 ## Local import
 
