@@ -1,0 +1,35 @@
+
+**********************************************************
+TONE3000 JUCE Log
+Log started: 3 Sep 2026 2:42:45am
+
+[Processor] Settings file: /Users/bruno.saraiva/Library/Developer/CoreSimulator/Devices/332D5E88-B221-4285-A706-2895AF6CBD8C/data/Containers/Data/Application/F3B3E9B8-591C-4586-98FA-E3C5487F6B52/Library/Application Support/TONE3000/preferences.settings (exists=no) | multiCore=on
+[Processor] prepareToPlay: sampleRate=44100, samplesPerBlock=512
+[Processor] releaseResources() called
+[Processor] prepareToPlay: sampleRate=48000, samplesPerBlock=128
+Release mode: loading from embedded resources
+Requested URL: /index.html
+Returning resource: index_html (text/html)
+[webview:log] Main WebView: JUCE C++ Backend loaded
+Requested URL: /main.js
+Returning resource: main_js (text/javascript)
+Requested URL: /assets/main-CugZYk7s.css
+Returning resource: mainCugZYk7s_css (text/css)
+[webview:log] TONE3000 UI booted
+Requested URL: /t3k.svg
+Returning resource: t3k_svg (image/svg+xml)
+Requested URL: /assets/roboto-mono-latin-400-normal-GekRknry.woff2
+Returning resource: robotomonolatin400normalGekRknry_woff2 (font/woff2)
+[Restore] Block f606df9f6b4c43a58d8ad90e5afbca7f tone 0 model 1162749454 (cached) queued for load
+[Restore] Block 0fda02cf638e40c38de5a236a4871d26 tone 0 model 700315392 (cached) queued for load
+[Restore] Block 88c8d71834a1408ba06bf08c6cdd4545 tone 0 model 1972390137 (cached) queued for load
+[ModelLoader] Preparing NAM model: tone3000-65976-fender-vibroverb-1964-model-443383.nam (294666 bytes)
+[ModelLoader] Preparing NAM model: tone3000-66220-dumble-steel-string-singer-002-model-446214.nam (295297 bytes)
+[ModelLoader] Preparing NAM model: tone3000-66410-fender-vibroverb-1964-boost-model-428318.nam (295246 bytes)
+[Presets] Loaded preset: Alpha
+[ModelLoader] NAM model prepared, model sample rate: 48000
+[ModelLoader] NAM model prepared, model sample rate: 48000
+[ModelLoader] NAM model prepared, model sample rate: 48000
+[Restore] Block f606df9f6b4c43a58d8ad90e5afbca7f tone 0 model 1162749454 (needs fetch) queued for load
+[ModelLoader] Local model file missing or unreadable: file:///Users/bruno.saraiva/Library/Developer/CoreSimulator/Devices/332D5E88-B221-4285-A706-2895AF6CBD8C/data/Containers/Data/Application/1060BB2C-F324-4E27-AEA3-37BE921A3204/Library/TONE3000/LocalModels/a3dd5e40b5d8ad01-294666.nam
+[ModelLoader] Load failed for block f606df9f6b4c43a58d8ad90e5afbca7f, showing retry

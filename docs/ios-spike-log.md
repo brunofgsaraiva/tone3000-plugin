@@ -1403,6 +1403,74 @@ above, and then the PR: `docs/ios.md` is the document that goes with it, and
 this file does not.
 
 
+## P8 The rotating container (the last Known gap)
+
+**Root cause.** `stashLocalBytes` writes the stash copy's *absolute* path into
+the model's `model_url`, and that tone JSON is what gets persisted: in
+`.t3kpreset` files, in `getStateInformation`, and in every undo snapshot. On
+iOS the app data container's UUID rotates on every reinstall **and every app
+update**, so all of those paths name a directory that no longer exists.
+
+Presets and project state survive it anyway, because they embed the model
+bytes (`ModelCache`) and the restore seeds `block->modelCache` from them.
+Undo snapshots are settings-only (`captureChainSnapshot()` defaults to
+`includeModelData = false`), so undo of a *remove* is the one path that has
+to go back to the file - and it was the one that broke. Same for a Retry, and
+for switching to a local model whose bytes were never loaded.
+
+**Fix.** One pure function, `TONE3000Processor::resolveLocalModelFile(root,
+url)`: a stored path that still exists is returned untouched; otherwise the
+file *name* is re-rooted under the current stash folder. Stash names are
+content hashes in a flat directory, so the name is the stable token and the
+re-root is exact, not a guess. Two callers, `fetchModelFromUrl` and
+`refreshLocalStashCopy`. **Not gated on `JUCE_IOS`**: on desktop the root
+never moves, so the fallback yields the path that was just probed and the
+outcome is unchanged. The persisted form is untouched (still an absolute
+`file://` URL), which is what keeps old presets working and leaves the UI's
+`model_url.startsWith('file:')` and the loader's `.nam` extension sniff alone.
+
+**Proof, on the Simulator.** The container had already rotated twice between
+sessions, which is the real-user shape: presets on disk name container
+`1060BB2C-F324-4E27-AEA3-37BE921A3204`, and the run happened under
+`F3B3E9B8-...` and then `694EC1AE-...` after an `uninstall` / `install` with
+`Documents` and `Library` copied into the new container.
+
+Before, on the tip build - load preset "Alpha", remove a block, undo:
+
+```
+[Restore] Block f606df9f... tone 0 model 1162749454 (needs fetch) queued for load
+[ModelLoader] Local model file missing or unreadable: file:///.../Application/1060BB2C-.../LocalModels/a3dd5e40b5d8ad01-294666.nam
+[ModelLoader] Load failed for block f606df9f..., showing retry
+```
+
+with `a3dd5e40b5d8ad01-294666.nam` present under the current container all
+along. After, same steps, one more rotation:
+
+```
+[Restore] Block f606df9f... tone 0 model 1162749454 (needs fetch) queued for load
+[ModelLoader] Preparing NAM model: tone3000-65976-fender-vibroverb-1964-model-443383.nam (294666 bytes)
+[ModelLoader] NAM model prepared, model sample rate: 48000
+```
+
+Three tiles back, no retry badge, CPU 2.7% -> 4.1%. The preset itself loaded
+in both builds (`(cached)` - the embedded bytes), which narrows the original
+Known gap's wording: it was never the preset, it was the undo.
+
+Evidence: `docs/ios-spike/p8-preset-alpha-loaded-before.png`,
+`p8-undo-remove-retry-before.png`, `p8-before-unfixed.log`,
+`p8-undo-remove-restored-after.png`, `p8-after-fixed.log`.
+
+Unit test: `LocalLoadTest.StashUrlResolvesUnderTheCurrentRoot`. Full suite
+130/130 green, macOS Release regression build exit 0.
+
+**Not proved.** A fresh `.nam` load and preset *save* followed by a rotation
+was not re-run; the proof used presets already on disk from two container
+generations back, which exercises the same resolver on the harder (legacy
+absolute) input. The Retry button itself was not tapped, and none of this was
+run on the owner's iPad. The mic prompt returns after a reinstall and was
+declined, which adds the "Microphone access is off" banner to the after
+screenshots and shifts the layout ~44 pt down.
+
 ## Open issues
 
 - The redirect URI needs no registration on this account (no restrictions

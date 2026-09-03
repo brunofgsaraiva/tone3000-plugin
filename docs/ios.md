@@ -115,6 +115,18 @@ complete (see Known gaps).
 - **`env(safe-area-inset-*)` is 0 on all sides** here: the WKWebView is
   already inset (1366x999 in a 1024 pt screen), so the faceplate clears the
   home indicator without the page doing anything.
+- **The app data container's UUID rotates on every reinstall and every app
+  update.** Any absolute path the plugin persisted then names a directory
+  that no longer exists, and the only path it persists is a local model's
+  stash URL, in the tone JSON that rides presets, the saved app state and
+  undo snapshots. Undoing a *remove* was the visible casualty: it reloads
+  the model from that URL (undo snapshots carry no embedded bytes) and came
+  back "Download failed / Retry" with the file sitting there under the new
+  container. Stash names are content hashes in one flat folder, so
+  `resolveLocalModelFile` re-roots the stored file name under the current
+  stash folder; a path that still exists is used as-is, which is every
+  desktop case. Presets and project state were never affected: they embed
+  the model bytes.
 - `xcrun simctl privacy grant microphone` does not suppress the prompt;
   `AVAudioSession` still asks once.
 - **`UIRequiresFullScreen` no longer opts an app out of multitasking** on
@@ -129,12 +141,6 @@ complete (see Known gaps).
 - The double-tap knob reset is proved in a browser against the same bundle,
   not on a device: two taps cannot be driven inside 300 ms through the
   Simulator automation bridge.
-- Undoing a *remove* restores the block by reloading its cached model from an
-  absolute path under the app container. Reinstalling the app rotates that
-  container, so a preset saved before a reinstall comes back as "Download
-  failed / Retry" even though the cached file is there under the new
-  container. Seen on the Simulator across reinstalls; not seen for a block
-  loaded in the same run.
 - Dragging a `.nam` from Files onto a tile is untested. The receiving code is
   the same HTML5 drop path the desktop uses, and the app does window alongside
   Files, but the drag could not be driven from the automation.
