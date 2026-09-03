@@ -21,6 +21,14 @@ export interface User {
   id: string;
   avatar_url: string;
   username: string;
+  /**
+   * Present only if /api/v1/user returns it; the cache stores the response
+   * verbatim. Feeds the login flow's `login_hint` so a returning user does
+   * not retype the address they signed up with (see useToneSession's
+   * readCachedLoginHint). Optional on purpose: a response without it simply
+   * means no hint, and the login page opens the way it always did.
+   */
+  email?: string;
 }
 
 export interface Tag {

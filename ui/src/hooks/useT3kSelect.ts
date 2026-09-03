@@ -295,10 +295,13 @@ export const useT3kSelect = ({
    * Kick off the no-prompt login flow: sign-in only, no tone browsing on
    * tone3000.com. With `openBrowser` (the + / swap flows) the in-plugin tone
    * browser takes over on return; without it (account-menu sign-in) the user
-   * lands straight back on the main screen.
+   * lands straight back on the main screen. `loginHint` is the returning
+   * user's known address (useToneSession reads it from the identity cache),
+   * passed through as OAuth's `login_hint` so the page opens pre-filled;
+   * omitted when there is nothing cached.
    */
   const startLoginFlow = useCallback(
-    (options?: { openBrowser?: boolean }) => {
+    (options?: { openBrowser?: boolean; loginHint?: string }) => {
       if (!requireKey()) return;
       setOauthError(null);
       sessionStorage.setItem(LAST_FLOW_KEY, options?.openBrowser ? 'login-browse' : 'login');
@@ -306,7 +309,10 @@ export const useT3kSelect = ({
       else sessionStorage.removeItem(LOGIN_INTENT_KEY);
       // Dim the current screen immediately; the redirect takes a beat.
       setOauthPhase('leaving');
-      startLoginFlowRedirect(PUBLISHABLE_KEY, getRedirectUri(), { menubar: MENUBAR }).catch((err) => {
+      startLoginFlowRedirect(PUBLISHABLE_KEY, getRedirectUri(), {
+        menubar: MENUBAR,
+        loginHint: options?.loginHint,
+      }).catch((err) => {
         console.error('Failed to start TONE3000 login flow', err);
         setOauthError(err instanceof Error ? err.message : String(err));
         setOauthPhase('error');
