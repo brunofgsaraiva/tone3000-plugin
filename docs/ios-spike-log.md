@@ -974,6 +974,44 @@ Careful with the tile glow as a marker: it tracks the *slot's* signal, not the
 block, so it does not move with a reordered tile. Mark a block by bypassing
 it, not by its glow.
 
+## P3 Files import parity
+
+Two of the three questions are answered; the drag itself is not, and the
+reason is the harness, not the app.
+
+**Folder import: already settled.** iOS cannot enumerate a security-scoped
+directory, so Load Folder is a multi-select there. Unchanged.
+
+**The scenario is reachable, and REQUIRES_FULL_SCREEN no longer prevents it.**
+Dragging Files out of the Dock put it in a window beside the running app
+(`p3-files-window-alongside.png`) **even though the plist sets
+`REQUIRES_FULL_SCREEN TRUE`**. On iPadOS 26 that key no longer opts an app out
+of multitasking. Two consequences:
+
+- The P3 scenario can be set up on a device today.
+- The key is not protecting the layout, so the review's "keep it until Split
+  View is tried" is weaker than it looked. Note the app was *not* resized: the
+  second app floats over it rather than splitting the width, so the
+  narrow-width layout risk did not materialise here.
+
+**The receiving side already exists and is platform-neutral.** `GalleryBlock`
+arms on `dragover` when `dataTransfer.types` includes `Files` (dashed border
+plus an upload glyph, the `dropArmed` state) and on `drop` hands
+`dataTransfer.items[0]` to `loadLocalFile`, the same call the tile menu's Load
+File uses. Nothing in that path is desktop-specific.
+
+**Not proved: the drag.** Three attempts at three dwell times (380 ms, 620 ms,
+1000 ms before moving) failed to lift the file out of Files. The long dwell
+opened Files' own context menu instead; the short ones did nothing. UIKit's
+drag lift wants a press-and-move that the synthetic touch path does not
+reproduce, and the automation offers no drag-and-drop primitive. Stopped after
+three rather than keep guessing at timings.
+
+**Owner action:** one finger-drag of a `.nam` from Files onto a tile settles
+it. If the tile shows a dashed drop border while the file is over it, the
+whole path works; if it does not, WKWebView is not delivering the drag and the
+Load File rows stay the only route, which is already the supported one.
+
 ## Handoff
 
 State as of commit `5193cf1` on `ios-spike`. **Superseded**: P7 items 3 and
