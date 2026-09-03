@@ -828,6 +828,36 @@ before building after a UI change, and check the requested asset name in
 
 macOS Release regression after this item: green.
 
+### P7 item 5: system gestures are not intercepted
+
+Answered at the source, because the automation bridge can only drive one and
+two finger paths, so 3 and 4 finger gestures cannot be tested here.
+
+What could intercept them, and what the code does:
+
+| mechanism | state |
+| --------- | ----- |
+| `preventDefault` on a touch, pointer or gesture event | never. The only two call sites in the UI are a dnd-kit `DragOverEvent` (a library event, not DOM) and a `wheel` listener, and a wheel does not exist on touch. |
+| `preferredScreenEdgesDeferringSystemGestures` | not used, by this app or by JUCE. This is the only API that can hold off a system edge swipe, so edge swipes always win. |
+| custom `UIGestureRecognizer` | none added by the app. JUCE adds a hover recognizer and a pan recognizer, and the pan one is configured for indirect input (`allowedScrollTypesMask`, `maximumNumberOfTouches: 0`, trackpad scroll) with `cancelsTouchesInView: NO`, so it never takes finger touches from the system. |
+| `touch-action` | `manipulation` on html/body. It steers what the *page* does with a gesture and cannot affect a system one. |
+
+3 finger undo/redo and 4 finger app switching are recognised by UIKit above
+the app; with nothing deferring or cancelling, they reach the system
+unchanged.
+
+Live check of the one system gesture that can be driven: a swipe from the
+interface bottom edge with the app in the foreground opened the iPad Dock
+over it (`p7-i5-system-dock-over-app.png`).
+
+Related, found while reading: JUCE returns `prefersHomeIndicatorAutoHidden`
+for a kiosk-mode view, which the iOS Standalone is. The home indicator
+therefore auto-hides over this app, which is why it never appears in the
+screenshots. That hides the indicator; it does not defer its gesture.
+
+**Not proved:** the 3 and 4 finger gestures themselves. The owner should run
+them once on the iPad.
+
 ## Handoff
 
 State as of commit `5193cf1` on `ios-spike`. **Superseded**: P7 items 3 and
