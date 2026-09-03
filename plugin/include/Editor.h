@@ -12,6 +12,9 @@
 
 #include "DarkLookAndFeel.h"
 #include "EditorWebViewSetup.h"
+#if JUCE_IOS
+#include "IosBrowserChrome.h"
+#endif
 #include "Processor.h"
 #include "StandaloneAudioSettings.h"
 #include "BinaryData.h"  // Contains embedded Web UI assets (HTML/CSS/JS)
@@ -89,6 +92,14 @@ private:
   // WebView UI
   //==============================================================================
   std::unique_ptr<EditorWebViewSetup::GuardedWebView> mainWebView;  // Main Plugin UI
+
+#if JUCE_IOS
+  // Navigation chrome over the in-app tone3000.com pages (see
+  // IosBrowserChrome.h). Only visible while the webview is off the plugin UI;
+  // resized() gives it the top strip and shortens the webview to match.
+  std::unique_ptr<IosBrowserChrome> browserChrome;
+  void setBrowserChromeVisible(bool visible);
+#endif
 
   // Guards against loading the main URL before the editor has a real
   // top-level NSWindow (Standalone races; harmless in AU/VST3 hosts).
