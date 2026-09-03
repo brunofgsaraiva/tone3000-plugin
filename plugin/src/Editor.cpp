@@ -1,4 +1,5 @@
 #include "Editor.h"
+#include "IosWebViewGestures.h"
 #include "Processor.h"
 
 void TONE3000Editor::parentHierarchyChanged() {
@@ -79,6 +80,13 @@ void TONE3000Editor::parentHierarchyChanged() {
   // load happens immediately. In Standalone we have to wait until JUCE
   // finishes wiring up the StandaloneFilterWindow, otherwise the WKWebView's
   // NSView attaches to no NSWindow and renders blank on some Macs.
+#if JUCE_IOS
+  // The WKWebView only exists once the peer does, and JUCE can recreate the
+  // peer, so re-apply on every reparent (same timing as the macOS block).
+  if (auto* peer = getPeer())
+    IosWebViewGestures::enableBackForwardSwipes(peer->getNativeHandle());
+#endif
+
   loadMainUrlIfNeeded();
 }
 
@@ -97,6 +105,30 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
   // WKWebView with `viewWindow=0x0` at load time.
   mainWebView->setOpaque(true);
   addAndMakeVisible(*mainWebView);
+
+#if JUCE_IOS
+  // The iPad has no window chrome and the site's own menubar strip is not on
+  // every step of the sign-in flow, so the app supplies the way back itself.
+  browserChrome = std::make_unique<IosBrowserChrome>();
+  browserChrome->setVisible(false);
+  addChildComponent(*browserChrome);
+  browserChrome->onBack = [this] { mainWebView->goBack(); };
+  browserChrome->onForward = [this] { mainWebView->goForward(); };
+  browserChrome->onReload = [this] { mainWebView->refresh(); };
+  browserChrome->onClose = [this] {
+    // Straight back to the plugin UI, with no OAuth query: the site's
+    // `canceled=true` redirect carries the flow's `state` and would fail the
+    // callback's state check if we forged it, whereas a plain load mounts
+    // React fresh, which is 'idle' by construction, so no busy overlay is
+    // left hanging. Chain state lives natively, tokens in localStorage, so
+    // the reload costs nothing (same reasoning as the network-error
+    // recovery in GuardedWebView::pageLoadHadNetworkError).
+    const juce::String home = mainWebView->getRecoveryUrl();
+    if (home.isNotEmpty())
+      mainWebView->goToURL(home);
+  };
+  mainWebView->onRemotePageChanged = [this](bool remote) { setBrowserChromeVisible(remote); };
+#endif
 
   // Bespoke audio settings (standalone only): the controller listens to the
   // device manager and pushes changes to the UI, which re-pulls state.
@@ -156,6 +188,15 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
   applyScaledSize(savedScale);
 #endif  // JUCE_IOS
 }
+
+#if JUCE_IOS
+void TONE3000Editor::setBrowserChromeVisible(bool visible) {
+  if (browserChrome == nullptr || browserChrome->isVisible() == visible)
+    return;
+  browserChrome->setVisible(visible);
+  resized();
+}
+#endif
 
 void TONE3000Editor::applyScaledSize(double scale) {
   setSize(juce::roundToInt(kWidth * scale), juce::roundToInt(totalHeight() * scale));
@@ -353,8 +394,13 @@ void TONE3000Editor::resized() {
   // Real pixels only, no transform. The webview handles devicePixelRatio
   // itself, and the page fits its design box to the actual viewport
   // (letterboxed; see useUiScale in the web UI).
+  auto content = getLocalBounds();
+#if JUCE_IOS
+  if (browserChrome != nullptr && browserChrome->isVisible())
+    browserChrome->setBounds(content.removeFromTop(IosBrowserChrome::kHeight));
+#endif
   if (mainWebView != nullptr)
-    mainWebView->setBounds(getLocalBounds());
+    mainWebView->setBounds(content);
   // Skip persisting while we're correcting our own size rather than
   // reflecting one the user (or host) actually chose; see restoringSize.
   // No user- or host-chosen scale exists on iOS (the window is the screen),

@@ -265,6 +265,8 @@ if (NOT HEADLESS)
             src/Editor.cpp
             include/EditorWebViewSetup.h
             src/EditorWebViewSetup.cpp
+            include/IosBrowserChrome.h
+            include/IosWebViewGestures.h
             include/StandaloneAudioSettings.h
             src/StandaloneAudioSettings.cpp
     )
@@ -287,6 +289,9 @@ if (NOT HEADLESS)
         # AVAudioSession route query + the Bluetooth HFP opt-out (see
         # IosAudioRoute.h).
         target_sources(${PROJECT_NAME} PRIVATE src/IosAudioRoute.mm)
+        # WKWebView back/forward swipes on the in-app tone3000.com pages
+        # (see IosWebViewGestures.h); no-op off iOS.
+        target_sources(${PROJECT_NAME} PRIVATE src/IosWebViewGestures.mm)
     else()
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.cpp)
         # Space passthrough to the host DAW (see WindowKeyEvents.cpp).

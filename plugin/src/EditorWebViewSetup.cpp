@@ -56,16 +56,38 @@ bool GuardedWebView::isAllowedUrl(const juce::String& url) {
   if (url.startsWith("http://localhost:") || url.startsWith("http://127.0.0.1:"))
     return true;
   // The OAuth Select flow navigates the view to tone3000.com and back.
-  const juce::String domain = juce::URL(url).getDomain();
-  if (url.startsWith("https://") &&
-      (domain == "tone3000.com" || domain.endsWith(".tone3000.com")))
+  if (isRemoteUrl(url))
     return true;
   return false;
 }
 
+bool GuardedWebView::isRemoteUrl(const juce::String& url) {
+  if (!url.startsWith("https://"))
+    return false;
+  const juce::String domain = juce::URL(url).getDomain();
+  return domain == "tone3000.com" || domain.endsWith(".tone3000.com");
+}
+
+void GuardedWebView::reportRemote(const juce::String& url) {
+  // about:blank is JUCE hiding the view, not a navigation the user made;
+  // reporting it would flap the chrome off and on mid-flow.
+  if (url == "about:blank")
+    return;
+  const bool remote = isRemoteUrl(url);
+  if (remote == onRemotePage)
+    return;
+  onRemotePage = remote;
+  if (onRemotePageChanged)
+    onRemotePageChanged(remote);
+}
+
 bool GuardedWebView::pageAboutToLoad(const juce::String& newUrl) {
-  if (isAllowedUrl(newUrl))
+  if (isAllowedUrl(newUrl)) {
+    // On the leading edge, so the escape hatch is up before the remote page
+    // paints rather than after it finishes loading.
+    reportRemote(newUrl);
     return true;
+  }
   juce::Logger::writeToLog("Blocked webview navigation to: " + newUrl);
   if (newUrl.startsWith("http://") || newUrl.startsWith("https://"))
     juce::URL(newUrl).launchInDefaultBrowser();
@@ -99,8 +121,11 @@ bool GuardedWebView::pageLoadHadNetworkError(const juce::String& errorInfo) {
   return false;  // never show the platform's built-in error page
 }
 
-void GuardedWebView::pageFinishedLoading(const juce::String&) {
+void GuardedWebView::pageFinishedLoading(const juce::String& url) {
   recoveryInFlight = false;
+  // Back/forward inside the view can restore a page without a
+  // pageAboutToLoad on some backends; this is the backstop.
+  reportRemote(url);
 }
 
 // WebView2's cache/storage folder (Windows only). A stable per-user location
