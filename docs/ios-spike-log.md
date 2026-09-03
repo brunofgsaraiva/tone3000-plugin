@@ -858,6 +858,58 @@ screenshots. That hides the indicator; it does not defer its gesture.
 **Not proved:** the 3 and 4 finger gestures themselves. The owner should run
 them once on the iPad.
 
+### Evidence: the desktop build really is untouched
+
+The macOS Standalone's generated `Info.plist` from a `main` worktree and from
+`ios-spike`, both configured with the same generator and build type:
+
+```
+6e99dbaffc01acf35da4c84a615ca09baeb8e19f  <main>/build/.../TONE3000_Standalone/Info.plist
+6e99dbaffc01acf35da4c84a615ca09baeb8e19f  <branch>/build/.../TONE3000_Standalone/Info.plist
+```
+
+Identical SHA-1, and `diff` of `plutil -p` on both is empty. The branch's own
+copy was not even rewritten by the reconfigure, which is CMake saying the
+inputs produced the same bytes. Every iOS plist key lives inside
+`if (T3K_IOS)`, which no macOS configure sets.
+
+### Tile-row scaling: the two constraints contradict each other
+
+Measured off a Simulator screenshot of the iPad Pro 12.9 (points, from the
+drawn borders, not from the source):
+
+| thing | value |
+| ----- | ----- |
+| header bottom border | y = 84.5 |
+| faceplate top border | y = 832 |
+| lane band height | 747.5 |
+| tile pitch (tile + gap) | 331 |
+| tile | 299 (224 design px at scale 1.334) |
+| first tile left edge | 149 |
+| tiles fully visible | 3, the 4th is clipped by the output meter |
+
+So the row uses 299 of 747.5 pt: about 450 pt of the lane is empty, which is
+the owner's complaint and is real.
+
+The cap as written cannot be met at the same time. Four tiles across need
+`4t + 3 gaps` inside the width left between the two dB meter columns, roughly
+1068 pt: `4t + 96 <= 1068`, so `t <= 243 pt` = **182 design px**. The tile is
+224 design px today, so "four across" requires making the tiles *smaller*,
+while "fill the lane height" requires making them much larger. Four across is
+already not true today.
+
+Not implemented, deliberately: it needs the owner to say which constraint
+wins. The three readings, cheapest first:
+
+1. **Height wins.** Grow the tile toward the lane height (up to roughly 500
+   design px) and accept two per screen with horizontal scroll. Biggest
+   visual change, closest to "fill the lane".
+2. **A number-visible floor wins.** Keep a minimum of N fully visible and
+   grow to whatever that allows: N=3 gives about 330 pt (247 design px), a
+   small growth; N=4 shrinks the tiles.
+3. **Split the difference.** Grow the tile to the lane height minus a margin
+   but cap it at a fraction of the width so at least three stay visible.
+
 ## Handoff
 
 State as of commit `5193cf1` on `ios-spike`. **Superseded**: P7 items 3 and
