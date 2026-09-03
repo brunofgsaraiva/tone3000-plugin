@@ -144,3 +144,7 @@ complete (see Known gaps).
 - Dragging a `.nam` from Files onto a tile is untested. The receiving code is
   the same HTML5 drop path the desktop uses, and the app does window alongside
   Files, but the drag could not be driven from the automation.
+
+## Desktop CI evidence
+
+The upstream `Build Plugin` workflow was dispatched on the fork at `331e3bc`: macOS Universal, Windows x64 and Linux x64 all green (run 33705530505). The first run at `956cb81` failed on Windows and Linux with an unresolved `Haptics::impact`; the no-op is now header-only for non-iOS builds.
