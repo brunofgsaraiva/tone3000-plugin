@@ -271,6 +271,8 @@ if (NOT HEADLESS)
     # OS microphone-permission shim: AVFoundation (ObjC++) on macOS, a
     # best-effort stub elsewhere (see AudioPermissions.h).
     target_sources(${PROJECT_NAME} PRIVATE include/AudioPermissions.h)
+    # iOS audio-route shim; header-only no-op on Windows and Linux.
+    target_sources(${PROJECT_NAME} PRIVATE include/IosAudioRoute.h)
     # Webview session clearing is platform-specific: WKWebsiteDataStore needs
     # ObjC++ on Apple; elsewhere a best-effort JUCE fallback.
     if (APPLE)
@@ -282,6 +284,9 @@ if (NOT HEADLESS)
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.mm)
         # Taptic feedback for the iPad tile drag (no-op off iOS).
         target_sources(${PROJECT_NAME} PRIVATE src/Haptics.mm)
+        # AVAudioSession route query + the Bluetooth HFP opt-out (see
+        # IosAudioRoute.h).
+        target_sources(${PROJECT_NAME} PRIVATE src/IosAudioRoute.mm)
     else()
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.cpp)
         # Space passthrough to the host DAW (see WindowKeyEvents.cpp).
