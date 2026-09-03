@@ -1,9 +1,10 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { rem } from '../hooks/useUiScale';
-import { LogIn, LogOut, Settings as SettingsIcon } from './icons';
+import { Hand, LogIn, LogOut, Settings as SettingsIcon } from './icons';
 import type { User } from '../types/tone';
 import { AvatarImage } from './AvatarFallback';
 import { useDismissable } from '../hooks/useDismissable';
+import { IS_IOS } from '../hooks/useUiScale';
 import { HELP, helpProps } from './helpText';
 import { BORDER, SURFACE_RAISED } from './theme';
 
@@ -45,6 +46,8 @@ interface AccountMenuProps {
   user: User | null;
   authenticated: boolean;
   onOpenSettings: () => void;
+  /** iOS only: opens the gestures sheet. Absent (and unrendered) elsewhere. */
+  onShowGestures: () => void;
   onLogin: () => void;
   onLogout: () => void;
 }
@@ -53,6 +56,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   user,
   authenticated,
   onOpenSettings,
+  onShowGestures,
   onLogin,
   onLogout,
 }) => {
@@ -121,6 +125,19 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
             <SettingsIcon size={18} />
             Settings
           </button>
+          {IS_IOS && (
+            <button
+              className="account-menu-item"
+              style={itemStyle}
+              onClick={() => {
+                setOpen(false);
+                onShowGestures();
+              }}
+            >
+              <Hand size={18} />
+              Gestures
+            </button>
+          )}
           {authenticated ? (
             <button
               className="account-menu-item"
