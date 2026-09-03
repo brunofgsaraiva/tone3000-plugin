@@ -104,6 +104,53 @@ TEST(ToneRefreshTest, IdenticalPayloadIsANoOp) {
   EXPECT_EQ(static_cast<int>(proc.getChainState(-1)["revision"]), revisionAfterFirst);
 }
 
+// Naming a block refreshes that one regardless of its stored tone id: how a
+// local .nam adopts the TONE3000 tone it was matched to (useLocalToneIdentity).
+// The adopted block must keep playing its own stash copy, so `local` and the
+// stored models array survive, and it must stay out of the id-matched sync.
+TEST(ToneRefreshTest, BlockTargetedRefreshAdoptsIdentityAndStaysLocal) {
+  ChainTestProcessor proc;
+
+  auto localBlock = makeIrBlockTree("blk-local", 0, 700);
+  localBlock.setProperty("toneJson",
+                         "{\"id\":0,\"title\":\"my-file\",\"format\":\"ir\",\"local\":true,"
+                         "\"models\":[{\"id\":700,\"name\":\"my-file\","
+                         "\"model_url\":\"file:///stash/abc-123.nam\"}]}",
+                         nullptr);
+  juce::ValueTree state("ChainSnapshot");
+  juce::ValueTree left("ChainBlocks");
+  left.appendChild(makeIrBlockTree("blk-catalog", 1, 100), nullptr);
+  left.appendChild(localBlock, nullptr);
+  state.appendChild(left, nullptr);
+  proc.restoreFromTree(state);
+  ASSERT_TRUE(waitForChainLoaded(proc));
+
+  // An unknown block id is a no-op, and the local block is untouched by the
+  // ordinary id-matched path even once it holds a real tone id (below).
+  EXPECT_FALSE(proc.refreshToneMetadata(freshPayload(5, "Nope", 1), "blk-missing"));
+
+  EXPECT_TRUE(proc.refreshToneMetadata(freshPayload(5, "Real Tone", 3), "blk-local"));
+
+  juce::var after = proc.getChainState(-1);
+  const juce::var adopted = after["chain"][1];
+  EXPECT_EQ(adopted["tone"]["title"].toString(), "Real Tone");
+  EXPECT_EQ(static_cast<int>(adopted["tone"]["id"]), 5);
+  // Playback stays local: the flag and the stash model_url both survive.
+  EXPECT_TRUE(static_cast<bool>(adopted["tone"]["local"]));
+  ASSERT_NE(adopted["tone"]["models"].getArray(), nullptr);
+  ASSERT_EQ(adopted["tone"]["models"].getArray()->size(), 1);
+  EXPECT_EQ(adopted["tone"]["models"][0]["model_url"].toString(), "file:///stash/abc-123.nam");
+  EXPECT_EQ(static_cast<int>(adopted["activeModelId"]), 700);
+  // The catalog block was not collateral damage.
+  EXPECT_EQ(after["chain"][0]["tone"]["title"].toString(), "Test IR");
+
+  // Now that it carries tone 5, the ordinary catalog sync must still refuse
+  // to overwrite it: `local` is the guard, and adoption preserved it.
+  EXPECT_FALSE(proc.refreshToneMetadata(freshPayload(5, "Impostor", 9)));
+  after = proc.getChainState(-1);
+  EXPECT_EQ(after["chain"][1]["tone"]["title"].toString(), "Real Tone");
+}
+
 TEST(ToneRefreshTest, MismatchedInvalidAndLocalPayloadsNoOp) {
   ChainTestProcessor proc;
 

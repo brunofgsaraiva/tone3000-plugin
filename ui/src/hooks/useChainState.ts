@@ -161,8 +161,10 @@ export function useChainState() {
       /** Best-effort metadata re-sync from a fresh /tones/{id} payload:
           native merges it into every block holding that tone (stored models
           preserved). Metadata only, not undoable; no-op when unchanged. */
-      refreshToneMetadata: (toneJson: string) =>
-        run<boolean>('refreshToneMetadata', () => native.refreshToneMetadata(toneJson)),
+      refreshToneMetadata: (toneJson: string, blockId?: string) =>
+        run<boolean>('refreshToneMetadata', () =>
+          native.refreshToneMetadata(toneJson, blockId ?? '')
+        ),
       /** `modelJson` is the full model object (id/name/model_url); native
           only stores the active model and resolves the switch from this. */
       switchModel: (blockId: string, modelId: number, modelJson: string) =>
