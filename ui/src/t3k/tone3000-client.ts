@@ -450,6 +450,16 @@ export class T3KClient {
     return res.json();
   }
 
+  /** Search the public catalog. Used to give a locally loaded `.nam` back
+      its catalog identity (see localToneIdentity.ts); `page_size` caps at
+      25 server-side. */
+  async searchTones(query: string, pageSize = 10): Promise<PaginatedResponse<Tone>> {
+    const qs = new URLSearchParams({ query, page: '1', page_size: String(pageSize) });
+    const res = await this.fetch(`/api/v1/tones/search?${qs.toString()}`);
+    if (!res.ok) throw new Error(`searchTones failed: ${res.status}`);
+    return res.json();
+  }
+
   /**
    * List models for a tone. Pass `architecture` (e.g. `2` for NAM v2) only for
    * `format=nam` tones; omit for IR and other formats.

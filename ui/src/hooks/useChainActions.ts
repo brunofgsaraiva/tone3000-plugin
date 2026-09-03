@@ -80,7 +80,7 @@ export interface ChainActions {
   /** Push a fresh /tones/{id} payload into native, which merges it into
       every block holding that tone (stored models preserved). Best-effort
       background sync: metadata only, not undoable, no-op when unchanged. */
-  refreshToneMetadata: (toneJson: string) => void;
+  refreshToneMetadata: (toneJson: string, blockId?: string) => void;
   /** Fire-and-forget per-block param setter (see useChainState). */
   setBlockParam: (blockId: string, param: BlockParamName, value: number | boolean) => void;
   /** The block's NAM A2 size (0 = lite, 1 = full); retiers the loaded

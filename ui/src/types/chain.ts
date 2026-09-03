@@ -139,8 +139,16 @@ export interface ToneSummary {
   /** Only the active model for catalog tones (the picker pages the catalog
       from the API). Local tones carry all their dropped files, each with
       its stash model_url: that's what a switch call needs, and there is no
-      catalog to fetch it from. */
-  models: { id: number; name: string; model_url?: string }[];
+      catalog to fetch it from. A local `.nam` also carries what its
+      `metadata` block said about itself (`nam_name` / `nam_author`), which
+      is what the catalog lookup in useLocalToneIdentity searches on. */
+  models: {
+    id: number;
+    name: string;
+    model_url?: string;
+    nam_name?: string;
+    nam_author?: string;
+  }[];
   /** Catalog totals. NAM uses `a2_models_count` (the plugin only loads v2);
       IR and other formats use `models_count`. */
   models_count: number;

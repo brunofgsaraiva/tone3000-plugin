@@ -229,8 +229,11 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
           // payload. Merges into every block holding that tone (stored models
           // array preserved); metadata only, not undoable, revision bumps
           // only on real change.
+          // An optional second arg names one block to refresh instead
+          // (local .nam identity adoption); see refreshToneMetadata.
           "refreshToneMetadata", guarded(1, false, [editor](const juce::Array<juce::var>& args) {
-            return juce::var(editor->processor.refreshToneMetadata(args[0].toString()));
+            return juce::var(editor->processor.refreshToneMetadata(
+                args[0].toString(), args.size() > 1 ? args[1].toString() : juce::String()));
           }))
       .withNativeFunction(
           // (blockId, modelId, modelJson): native only stores the active

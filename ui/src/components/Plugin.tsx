@@ -8,6 +8,7 @@ import { useParameter } from '../hooks/useParameter';
 import { useAudioDevice } from '../hooks/useAudioDevice';
 import { useConnectionGate } from '../hooks/useConnectionGate';
 import { useToneSession } from '../hooks/useToneSession';
+import { useLocalToneIdentity } from '../hooks/useLocalToneIdentity';
 import { useToneLoadFlow } from '../hooks/useToneLoadFlow';
 import { useUpdateNotice } from '../hooks/useUpdateNotice';
 import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT, IS_IOS } from '../hooks/useUiScale';
@@ -365,6 +366,10 @@ export const Plugin: React.FC = () => {
   // localStorage per render is fine: every login/logout transition already
   // re-renders Plugin (user / oauthPhase state), refreshing the value.
   const authenticated = t3kClient.isAuthenticated();
+
+  // Locally loaded .nam files that came from TONE3000 get their catalog
+  // artwork and title back (best-effort, off the load path).
+  useLocalToneIdentity(chain, chainRight, t3kClient, authenticated, actions.refreshToneMetadata);
 
   // Single stable bundle of everything a block can do. ChainView and the
   // tiles/cards below it read this from context instead of threading a dozen

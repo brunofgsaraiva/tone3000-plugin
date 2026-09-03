@@ -334,7 +334,8 @@ export const GearImageFallback: React.FC<{
  * Tone artwork with recovery: renders the image URL when present and swaps in
  * the gear-glyph fallback if it's missing or the network fetch fails (offline
  * / tone3000.com down). Local-file blocks (drag-and-drop loads) show a file
- * glyph instead: there is no artwork and no gear id to fall back to.
+ * glyph instead: there is no artwork and no gear id to fall back to -- unless
+ * the file was matched back to its TONE3000 tone, which supplies both.
  * Fills its parent like a plain cover <img>.
  */
 export const ToneImage: React.FC<{
@@ -352,7 +353,9 @@ export const ToneImage: React.FC<{
   React.useEffect(() => setFailed(false), [src]);
   const glyphSize = iconSize ?? Math.round(boxSize * 0.4);
 
-  if (local) {
+  // A local file that found itself in the catalog has real artwork (see
+  // useLocalToneIdentity); only a truly anonymous one gets the glyph.
+  if (local && !src) {
     return (
       <div
         style={{

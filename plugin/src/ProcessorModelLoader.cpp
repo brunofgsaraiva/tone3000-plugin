@@ -170,12 +170,24 @@ juce::var stashLocalBytes(const juce::String& filename, juce::MemoryOutputStream
   if (!isNam && extension != "wav")
     return fail("Only .nam and .wav files are supported");
 
+  // A .nam trained on TONE3000 names its tone and author in `metadata`.
+  // Carried onto the model so the UI can look the tone up in the catalog
+  // and give the tile its real artwork (see plugin/docs/local-models.md);
+  // absent on files from anywhere else, which just stay generic.
+  juce::String namName, namAuthor;
   if (isNam) {
     try {
       const auto* bytes = static_cast<const char*>(decoded.getData());
       const nlohmann::json config = nlohmann::json::parse(bytes, bytes + decoded.getDataSize());
       if (!namConfigIsA2(config))
         return fail("Only A2 NAM files are supported");
+      if (const auto meta = config.find("metadata");
+          meta != config.end() && meta->is_object()) {
+        if (const auto it = meta->find("name"); it != meta->end() && it->is_string())
+          namName = juce::String(it->get<std::string>());
+        if (const auto it = meta->find("modeled_by"); it != meta->end() && it->is_string())
+          namAuthor = juce::String(it->get<std::string>());
+      }
     } catch (const std::exception&) {
       return fail("Not a valid NAM file");
     }
@@ -217,6 +229,10 @@ juce::var stashLocalBytes(const juce::String& filename, juce::MemoryOutputStream
   model->setProperty("id", static_cast<int>(hash % 0x7ffffffe) + 1);
   model->setProperty("name", filename.upToLastOccurrenceOf(".", false, false));
   model->setProperty("model_url", juce::URL(stash).toString(false));
+  if (namName.isNotEmpty())
+    model->setProperty("nam_name", namName);
+  if (namAuthor.isNotEmpty())
+    model->setProperty("nam_author", namAuthor);
   return juce::var(model.get());
 }
 
