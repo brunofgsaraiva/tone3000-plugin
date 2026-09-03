@@ -28,7 +28,7 @@ import type { TileMenuAnchor, TileMenuItem } from './TileMenu';
 import type { ChainActions } from '../hooks/useChainActions';
 import { useToast } from './Toast';
 import { GRAY, ICON_SIZE, SURFACE, SURFACE_RAISED } from './theme';
-import { getUiScale, IS_IOS } from '../hooks/useUiScale';
+import { IS_IOS } from '../hooks/useUiScale';
 
 /**
  * Gallery view of a chain block: a square tone image with quick actions
@@ -89,26 +89,12 @@ export const GALLERY_DRAG_DISTANCE_PX = 6;
     and letting go without moving is a request for the menu rather than a tap. */
 const LONG_PRESS_MS = 250;
 
-/** How far the finger may drift before the long press is abandoned.
- *
- * This is the whole gesture-conflict story, so it is worth being exact. The
- * lane's PointerSensor is distance-only (no hold trigger, see ChainView), and
- * engages a drag at GALLERY_DRAG_DISTANCE_PX design px of travel. Keeping the
- * long-press slop strictly BELOW that makes the two gestures disjoint by
- * construction rather than by timing luck:
- *
- *   0 to 4 design px   the finger is still: the menu timer runs, no drag
- *   4 to 6 design px   menu abandoned, drag not yet engaged
- *   6 design px and up drag; the menu timer is already dead, so it cannot
- *                      fire mid-drag if the finger then pauses
- *
- * The earlier value (a flat 10 real px) was larger than the drag threshold,
- * which left a window where a drag had engaged with the menu timer still
- * armed: pausing mid-drag popped the menu open over the moving tile.
- *
- * Both are scaled by the live UI scale for the same reason the drag distance
- * is: the feel should track the rendered tile size, not the design grid. */
-const LONG_PRESS_SLOP_DESIGN_PX = GALLERY_DRAG_DISTANCE_PX - 2;
+/** How far the finger may drift before the long press is abandoned. The lane's
+    touch sensor lifts on Delay(250 ms, tolerance 5 real px, see ChainView), so
+    the same 5 px is the boundary: drift under it and the hold still stands,
+    drift over it and the tile is being dragged, not held, and the menu must
+    not fire. Real px, matching the tolerance it mirrors. */
+const LONG_PRESS_SLOP_PX = 5;
 
 const useTileMenu = () => {
   const [menuAnchor, setMenuAnchor] = useState<TileMenuAnchor | null>(null);
@@ -147,7 +133,7 @@ const useTileMenu = () => {
   //
   // Gated on pointerType 'touch', so mouse and trackpad behaviour on every
   // desktop platform is untouched.
-  const pressStart = useRef<{ x: number; y: number; at: number } | null>(null);
+  const pressStart = useRef<{ x: number; y: number; at: number; id: number } | null>(null);
   const releaseListener = useRef<((e: PointerEvent) => void) | null>(null);
 
   const cancelLongPress = useCallback(() => {
@@ -159,11 +145,15 @@ const useTileMenu = () => {
     }
   }, []);
 
+  // The release listener lives on window; a tile can unmount mid-press (undo,
+  // a preset load), so drop it on unmount.
+  useEffect(() => cancelLongPress, [cancelLongPress]);
+
   const longPressProps = {
     onPointerDown: (e: React.PointerEvent) => {
-      if (e.pointerType !== 'touch') return;
+      if (!IS_IOS || e.pointerType !== 'touch') return;
       cancelLongPress();
-      const start = { x: e.clientX, y: e.clientY, at: Date.now() };
+      const start = { x: e.clientX, y: e.clientY, at: Date.now(), id: e.pointerId };
       pressStart.current = start;
 
       // The release is watched on window, in the capture phase, not on the
@@ -174,12 +164,13 @@ const useTileMenu = () => {
       // block's detail view instead.
       const onRelease = (ev: PointerEvent) => {
         const held = pressStart.current;
+        if (held != null && ev.pointerId !== held.id) return;
         cancelLongPress();
         if (held == null || ev.type !== 'pointerup') return;
         if (Date.now() - held.at < LONG_PRESS_MS) return;
         if (
-          Math.abs(ev.clientX - held.x) > LONG_PRESS_SLOP_DESIGN_PX * getUiScale() ||
-          Math.abs(ev.clientY - held.y) > LONG_PRESS_SLOP_DESIGN_PX * getUiScale()
+          Math.abs(ev.clientX - held.x) > LONG_PRESS_SLOP_PX ||
+          Math.abs(ev.clientY - held.y) > LONG_PRESS_SLOP_PX
         )
           return;
         // The release that opens the sheet also fires a click; swallow it
@@ -194,8 +185,10 @@ const useTileMenu = () => {
     onPointerMove: (e: React.PointerEvent) => {
       const start = pressStart.current;
       if (start == null) return;
-      const slop = LONG_PRESS_SLOP_DESIGN_PX * getUiScale();
-      if (Math.abs(e.clientX - start.x) > slop || Math.abs(e.clientY - start.y) > slop)
+      if (
+        Math.abs(e.clientX - start.x) > LONG_PRESS_SLOP_PX ||
+        Math.abs(e.clientY - start.y) > LONG_PRESS_SLOP_PX
+      )
         cancelLongPress();
     },
   };
@@ -435,11 +428,7 @@ const TileSurface: React.FC<{
             </ChromeIconButton>
             <div style={{ display: 'flex', gap: '16rem' }}>
               {onMore && (
-                <ChromeIconButton
-                  help={HELP.tileMenu}
-                  onClick={onMore}
-                  onMouseDown={preventFocus}
-                >
+                <ChromeIconButton help={HELP.tileMenu} onClick={onMore} onMouseDown={preventFocus}>
                   <Ellipsis size={ICON_SIZE} />
                 </ChromeIconButton>
               )}
@@ -711,8 +700,7 @@ export const AddTile: React.FC<AddTileProps> = ({
   onClick,
   onPaste = null,
 }) => {
-  const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps } =
-    useTileMenu();
+  const { menuAnchor, openMenu, closeMenu, shouldIgnoreClick, longPressProps } = useTileMenu();
   const actions = useChainActions();
   const toast = useToast();
   // True while an OS file drag hovers the tile (drop-target highlight).

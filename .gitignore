@@ -2,9 +2,7 @@
 .vscode/
 libs/
 bin/
-build/
-build-arm64/
-build-x86_64/
+build*/
 release-build/
 vs-build/
 output/
@@ -22,5 +20,3 @@ TONE3000-CERTS/
 # Private maintainer notes
 notes/
 
-build-ios/
-build-ios-device/

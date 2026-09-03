@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { getUiScale, rem } from '../hooks/useUiScale';
+import { getUiScale, IS_IOS, rem } from '../hooks/useUiScale';
 import { DragDropProvider } from '@dnd-kit/react';
 import { isSortable } from '@dnd-kit/react/sortable';
 import { KeyboardSensor, PointerActivationConstraints, PointerSensor } from '@dnd-kit/dom';
@@ -99,7 +99,7 @@ const sensors: Sensors = [
       // competing scroll gesture on the element itself. Apple's HIG asks for
       // the opposite on iPad, so the two platforms genuinely want different
       // rules here rather than one shared one.
-      if (event.pointerType === 'touch')
+      if (IS_IOS && event.pointerType === 'touch')
         return [new PointerActivationConstraints.Delay({ value: 250, tolerance: 5 })];
 
       return [

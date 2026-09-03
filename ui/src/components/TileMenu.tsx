@@ -56,6 +56,11 @@ export const TileMenu: React.FC<{
     return () => window.removeEventListener('resize', onClose);
   }, [onClose]);
 
+  // On iOS every row can be filtered out (an empty slot with nothing copied):
+  // an empty panel is worse than no panel.
+  const shown = items.filter((item) => !(IS_IOS && item.disabled));
+  if (shown.length === 0) return null;
+
   return createPortal(
     <div
       ref={rootRef}
@@ -88,9 +93,7 @@ export const TileMenu: React.FC<{
           sheet should stay as short as possible. Desktop keeps the dimmed
           row, which is the platform convention there and the behaviour this
           menu has always had. */}
-      {items
-        .filter((item) => !(IS_IOS && item.disabled))
-        .map((item) => (
+      {shown.map((item) => (
         <button
           key={item.label}
           type="button"
@@ -123,7 +126,7 @@ export const TileMenu: React.FC<{
           {item.icon}
           {item.label}
         </button>
-        ))}
+      ))}
     </div>,
     document.body
   );

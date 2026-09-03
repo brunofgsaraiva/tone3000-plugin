@@ -46,9 +46,9 @@ Result: green. All 13 JUCE text patches applied, and the app links to
 Notes:
 
 - `ui/.env` holds `VITE_T3K_PUBLISHABLE_KEY` and is gitignored
-  (`ui/.gitignore` line 16). For the spike it carries a placeholder value, so
-  the UI boots but the TONE3000 catalogue login does not work. That is
-  accepted for now; see Open items.
+  (`ui/.gitignore` line 16). It started as a placeholder; from P7 onward it
+  carries the owner's real key, and the live Trending catalogue and the
+  TONE3000 login page both load on iOS. Never commit, print or quote it.
 - npm 11 needs the esbuild postinstall approved explicitly
   (`npm approve-scripts esbuild fsevents`). That writes an `allowScripts` block
   into `ui/package.json`; it is a local machine concern and is not committed.
@@ -830,8 +830,9 @@ macOS Release regression after this item: green.
 
 ## Handoff
 
-State as of commit `5193cf1` on `ios-spike`. Everything below is either done
-and verified on the Simulator, or explicitly not started.
+State as of commit `5193cf1` on `ios-spike`. **Superseded**: P7 items 3 and
+4 landed after it, so the table below is a snapshot, not current state. The
+newest Handoff section at the end of this file is the live one.
 
 ### Done
 
@@ -963,10 +964,14 @@ coordinate separated by `dt_ms`.
 
 ## Open issues
 
-- The TONE3000 publishable key is a placeholder, so the catalogue and OAuth
-  login are untested on iOS.
-- The OAuth redirect URI on iOS is unknown. macOS uses
-  `juce://juce.backend/index.html`; whether an iOS WKWebView build serves the
-  same origin needs checking, and whichever origin it is has to be registered
-  in TONE3000 Settings > API Keys.
+- The redirect URI needs no registration on this account (no restrictions
+  set), so the `juce://` origin question is moot here. An account that does
+  restrict URIs would still have to register whichever origin the iOS
+  WKWebView build serves.
+- Sign-in stops at the magic-link email, which only the owner can complete,
+  so nothing behind the login is tested on iOS: the Browse catalogue, its
+  search field, Favorites and Created.
 - AUv3 is out of scope; the Standalone is the only iOS target.
+- This file is the working diary. It carries machine paths and device
+  identifiers and must not go into the upstream PR; `docs/ios.md` is the
+  PR-facing document.

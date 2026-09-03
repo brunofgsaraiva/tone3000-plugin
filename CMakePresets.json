@@ -48,12 +48,11 @@
     {
       "name": "ios-device",
       "displayName": "iOS Standalone (device)",
-      "description": "Same as ios-simulator but code signed for a physical iPad. Set DEVELOPMENT_TEAM to your own team id.",
+      "description": "Same as ios-simulator but code signed for a physical iPad. Build with -sdk iphoneos -allowProvisioningUpdates; add -DCMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM=<id> if Xcode cannot pick your team.",
       "inherits": "ios-simulator",
       "binaryDir": "build-ios-device",
       "cacheVariables": {
-        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY": "Apple Development",
-        "CMAKE_XCODE_ATTRIBUTE_DEVELOPMENT_TEAM": "$env{TONE3000_DEVELOPMENT_TEAM}"
+        "CMAKE_XCODE_ATTRIBUTE_CODE_SIGN_IDENTITY": "Apple Development"
       }
     }
   ],
@@ -67,7 +66,9 @@
     {
       "name": "default",
       "configurePreset": "default",
-      "output": { "outputOnFailure": true },
+      "output": {
+        "outputOnFailure": true
+      },
       "execution": {
         "noTestsAction": "error",
         "stopOnFailure": false

@@ -17,10 +17,10 @@ namespace AudioPermissions {
 // settings banner, the inline alert, the one-click jump to privacy settings)
 // works unchanged.
 //
-// AVAudioSession.recordPermission is deprecated in iOS 17 in favour of
-// AVAudioApplication.recordPermission, which does not exist before it; the
-// availability check keeps both paths honest without raising the deployment
-// target.
+// ponytail: AVAudioSession.recordPermission is deprecated since iOS 17 in
+// favour of AVAudioApplication, but still works and keeps one code path at a
+// deployment target of iOS 16. Split it under `if (@available(iOS 17.0, *))`
+// when the deprecation becomes a removal.
 
 MicStatus getMicStatus() {
   const auto fromRecordPermission = [](AVAudioSessionRecordPermission p) {

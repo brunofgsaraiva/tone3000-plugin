@@ -35,7 +35,7 @@ export interface TouchHoldProps {
 
 export const useTouchHold = (onHold: () => void): TouchHoldProps => {
   const timer = useRef<number | undefined>(undefined);
-  const start = useRef<{ x: number; y: number } | null>(null);
+  const start = useRef<{ x: number; y: number; id: number } | null>(null);
   // A hold that fired must not also be read as a tap by whatever sits under
   // the finger (the Spread/Align advert button enables the feature on click).
   const suppressClick = useRef(false);
@@ -55,8 +55,17 @@ export const useTouchHold = (onHold: () => void): TouchHoldProps => {
   return {
     onPointerDown: (e: PointerEvent) => {
       if (e.pointerType !== 'touch') return;
+      // A hold on an icon-only control belongs to that control: the section
+      // power button, and everything in the panel this opens. ponytail: "no
+      // text" is the discriminator because the advert button is the only
+      // labelled control in the group, and it must stay holdable since it is
+      // the whole group while the feature is off. If a labelled control is
+      // ever added there, mark the ones to skip instead.
+      const control =
+        e.target instanceof Element ? e.target.closest('button, input, [role="button"]') : null;
+      if (control && !control.textContent?.trim()) return;
       cancel();
-      start.current = { x: e.clientX, y: e.clientY };
+      start.current = { x: e.clientX, y: e.clientY, id: e.pointerId };
       timer.current = window.setTimeout(() => {
         cancel();
         suppressClick.current = true;
@@ -65,7 +74,7 @@ export const useTouchHold = (onHold: () => void): TouchHoldProps => {
     },
     onPointerMove: (e: PointerEvent) => {
       const from = start.current;
-      if (from == null) return;
+      if (from == null || e.pointerId !== from.id) return;
       const slop = HOLD_SLOP_DESIGN_PX * getUiScale();
       if (Math.abs(e.clientX - from.x) > slop || Math.abs(e.clientY - from.y) > slop) cancel();
     },

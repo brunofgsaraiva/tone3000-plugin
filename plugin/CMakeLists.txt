@@ -150,8 +150,9 @@ endif()
 # Extra juce_add_plugin arguments for the iOS app. Kept in one list so the
 # call below stays a single unchanged block on every other platform.
 #
-# - BUNDLE_ID: a spike-specific id so an iPad can hold this next to any
-#   TONE3000 build signed under the project's own identity.
+# - BUNDLE_ID: T3K_IOS_BUNDLE_ID, defaulting to the project's own id. Pass
+#   -DT3K_IOS_BUNDLE_ID=<your id> to sign under a personal team; changing it
+#   on a device that already holds the app gives a fresh, empty Documents.
 # - BACKGROUND_AUDIO_ENABLED: without the "audio" UIBackgroundModes entry iOS
 #   suspends the audio session the moment the app leaves the foreground, which
 #   also breaks Inter-App Audio style use next to a DAW.
@@ -159,22 +160,26 @@ endif()
 #   story on iOS is the Files app. These two put the app's Documents folder in
 #   Files (UIFileSharingEnabled + LSSupportsOpeningDocumentsInPlace) so a user
 #   can drop captures in, and let juce::FileChooser open them in place.
-# - REQUIRES_FULL_SCREEN: the UI is one fixed-aspect faceplate with no
-#   responsive layout below its minimum; Split View would hand it widths it
-#   cannot render.
-# - IPAD_SCREEN_ORIENTATIONS: the faceplate is landscape by design.
+# - REQUIRES_FULL_SCREEN: the UI now fits itself to the viewport width (see
+#   useUiScale), so Split View would render; the key stays because the layout
+#   is designed for a full landscape iPad and has not been tried at a Split
+#   View width. Drop it once someone has.
+# - IPAD_SCREEN_ORIENTATIONS: the faceplate is landscape by design. iPhone is
+#   out of scope for this PR, so no iPhone orientation list.
 # The microphone and Bluetooth permission strings the plugin already declares
 # are the same keys iOS wants, so they are left in the shared block below.
+set(T3K_IOS_BUNDLE_ID "com.TONE3000.TONE3000" CACHE STRING
+    "Bundle identifier for the iOS app (override to sign under a personal team)")
+
 set(_t3k_ios_args "")
 if (T3K_IOS)
     set(_t3k_ios_args
-        BUNDLE_ID "com.bsaraiva.tone3000ios"
+        BUNDLE_ID "${T3K_IOS_BUNDLE_ID}"
         BACKGROUND_AUDIO_ENABLED TRUE
         FILE_SHARING_ENABLED TRUE
         DOCUMENT_BROWSER_ENABLED TRUE
         REQUIRES_FULL_SCREEN TRUE
         IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
-        IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
     )
 endif()
 

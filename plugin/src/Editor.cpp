@@ -130,6 +130,14 @@ TONE3000Editor::TONE3000Editor(TONE3000Processor& p) : AudioProcessorEditor(&p),
   // of the UI off the right edge. Take the size the window gives us instead and
   // let the web UI letterbox its 1024x578 design box into it (useUiScale),
   // which is the same path a host that refuses a resize already exercises.
+  //
+  // Still start at the design size and with the persisted chrome height, as
+  // every other platform does: an editor that is 0x0 until the kiosk window
+  // hands it bounds makes the UI's first scale calculation divide by a zero
+  // viewport, and totalHeight() is read before the web UI reports its own
+  // extra height back.
+  extraContentHeight = juce::jlimit(0, 160, processor.editorExtraHeight.load());
+  setSize(kWidth, totalHeight());
   setResizable(false, false);
 #else
   setResizable(true, true);

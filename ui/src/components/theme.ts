@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { rem, IS_IOS } from '../hooks/useUiScale';
+import { rem } from '../hooks/useUiScale';
 
 /**
  * Shared theme tokens. The palette is deliberately tiny: black surfaces,
@@ -144,27 +144,6 @@ export const iconButtonStyle = (size = ICON_BOX_SIZE): CSSProperties => ({
   fontSize: 0,
 });
 
-/**
- * Apple's minimum comfortable touch target, in points (HIG). The chrome icon
- * boxes are 20 design px and the top bar's are 28; at the iPad's fit scale
- * (~1.33 real px per design px) those land at roughly 27 pt and 37 pt, both
- * under the floor. Rather than redraw the chrome bigger on one platform, the
- * glyph keeps its size and an invisible child stretches the *hit* area to the
- * floor.
- *
- * The unit is deliberately `px`, not `rem`. The page is served with
- * `initial-scale=1`, so one CSS px is exactly one point; a rem is one design
- * px and would have to be divided by the live scale to mean anything here.
- */
-const TOUCH_TARGET_MIN_PT = 44;
-
-/** Positioning context for the hit-area expander (see IosTouchTarget in
-    ChromeIconButton.tsx). Undefined off iOS, so desktop styles are unchanged. */
-export const iosTouchTargetStyle: CSSProperties | undefined = IS_IOS
-  ? { position: 'relative' }
-  : undefined;
-
-export { TOUCH_TARGET_MIN_PT };
 
 /** Text chrome box (EQ, PRE, static LITE/FULL label): fixed height, mono. */
 export const textBoxStyle = (): CSSProperties => ({

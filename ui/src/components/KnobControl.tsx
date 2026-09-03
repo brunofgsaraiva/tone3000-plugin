@@ -5,7 +5,6 @@ import type { KnobThumb, KnobVariant } from './KnobInner';
 import type { KnobScale } from './knobScale';
 import { percentScale } from './knobScale';
 import { helpProps, pinHelp, unpinHelp } from './helpText';
-import { IosTouchTarget } from './ChromeIconButton';
 import { BORDER, BLACK, GRAY, KNOB_LABEL_GAP, SURFACE_RAISED, WHITE } from './theme';
 import { getUiScale, IS_IOS, rem } from '../hooks/useUiScale';
 
@@ -284,9 +283,9 @@ export const KnobControl: React.FC<KnobControlProps> = ({
       // which is harmless: releasing without moving stays at the default.
       // onReset runs after so owners can restore sibling defaults (e.g. the
       // Spread/Align advanced deck) in the same gesture.
-      if (e.altKey && resetToDefault()) {
-        // nothing further: the drag still engages below, which is harmless.
-      } else {
+      // Alt/Option-click resets; the drag still engages beneath, which is
+      // harmless (releasing without moving stays at the default).
+      if (!(e.altKey && resetToDefault())) {
         liveRef.current = valueRef.current;
         emittedRef.current = valueRef.current;
         setLiveValue(valueRef.current);
@@ -530,11 +529,6 @@ export const KnobControl: React.FC<KnobControlProps> = ({
         }}
       >
         <KnobInner value={shownValue} size={size} variant={variant} thumb={thumb} />
-        {/* 44 pt floor. At the iPad's scale the 48 px primary and 36 px
-            secondary knobs already clear it, so this changes nothing there;
-            it is what makes the floor hold at any scale (Split View, a
-            smaller iPad) rather than by arithmetic coincidence. */}
-        <IosTouchTarget />
         {valueBubble}
       </KnobHeadless>
 

@@ -290,7 +290,8 @@ html.t3k-ios [role='button'],
 html.t3k-ios [role='switch'],
 html.t3k-ios [role='tab'],
 html.t3k-ios [role='radio'],
-html.t3k-ios a[href] {
+html.t3k-ios a[href],
+html.t3k-ios .knob {
   position: relative;
 }
 
@@ -299,7 +300,8 @@ html.t3k-ios [role='button']::after,
 html.t3k-ios [role='switch']::after,
 html.t3k-ios [role='tab']::after,
 html.t3k-ios [role='radio']::after,
-html.t3k-ios a[href]::after {
+html.t3k-ios a[href]::after,
+html.t3k-ios .knob::after {
   content: '';
   position: absolute;
   left: 50%;

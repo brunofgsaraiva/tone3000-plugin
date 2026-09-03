@@ -91,13 +91,15 @@ const installDelegation = () => {
   // On `window` in the capture phase: a control that took pointer capture
   // (knobs, the tile lift) retargets its release, and a bubbling document
   // listener can miss it entirely.
-  const releaseTouch = (e: PointerEvent) => {
-    if (e.pointerType !== 'touch') return;
-    lastTouchRelease = performance.now();
-    update(null);
-  };
-  window.addEventListener('pointerup', releaseTouch, true);
-  window.addEventListener('pointercancel', releaseTouch, true);
+  if (IS_IOS) {
+    const releaseTouch = (e: PointerEvent) => {
+      if (e.pointerType !== 'touch') return;
+      lastTouchRelease = performance.now();
+      update(null);
+    };
+    window.addEventListener('pointerup', releaseTouch, true);
+    window.addEventListener('pointercancel', releaseTouch, true);
+  }
   // Pointer left the window entirely.
   document.addEventListener('mouseout', (e) => {
     if (e.relatedTarget === null) update(null);
@@ -249,7 +251,8 @@ const HELP_DESKTOP = {
   copyBlock: 'Copy: copy this block (tone, model and all settings).',
   pasteBlock: 'Paste: add a copy of the copied block in this slot.',
   loadFileTile: 'Load File: pick a local .nam or IR .wav file to load here. No account needed.',
-  loadFolderTile: 'Load Folder: pick a folder of .nam or .wav files; loads as one multi-model block.',
+  loadFolderTile:
+    'Load Folder: pick a folder of .nam or .wav files; loads as one multi-model block.',
   blockPower: 'Power: bypass this block.',
   retryLoad: 'Retry: re-download this model.',
   swapTone: 'Swap: replace this tone, keeping its slot.',
@@ -302,15 +305,11 @@ const HELP_DESKTOP = {
   // EQ editor
   eqFader: IS_IOS
     ? 'Band Fader: gain, ±15 dB. drag: adjust · double tap: reset.'
-    : `Band Fader: gain, ±15 dB. ${shift('drag')}: fine · double-click / ${alt(
-        'click'
-      )}: reset.`,
+    : `Band Fader: gain, ±15 dB. ${shift('drag')}: fine · double-click / ${alt('click')}: reset.`,
   eqFaderPass: 'Pass Band: no gain. Shape it in Curve view.',
   eqDot: IS_IOS
     ? 'Band Dot: drag: freq + gain · double tap: reset. Q: use the Q chip.'
-    : `Band Dot: drag: freq + gain · scroll: Q · ${shift('drag')}: fine · ${alt(
-        'click'
-      )}: reset.`,
+    : `Band Dot: drag: freq + gain · scroll: Q · ${shift('drag')}: fine · ${alt('click')}: reset.`,
   eqFreqChip:
     'Freq: click to type (\u201c800\u201d, \u201c1.2k\u201d). Enter: commit · Esc: cancel.',
   eqGainChip: 'Gain: click to type, ±15 dB. Enter: commit · Esc: cancel.',
@@ -343,13 +342,14 @@ const touchify = (copy: Record<string, string>): Record<string, string> =>
   Object.fromEntries(
     Object.entries(copy).map(([key, text]) => [
       key,
-      TOUCH_WORDING.reduce((acc, [pattern, replacement]) => acc.replace(pattern, replacement), text),
+      TOUCH_WORDING.reduce(
+        (acc, [pattern, replacement]) => acc.replace(pattern, replacement),
+        text
+      ),
     ])
   );
 
-export const HELP: Record<keyof typeof HELP_DESKTOP, string> = IS_IOS
-  ? (touchify(HELP_DESKTOP) as Record<keyof typeof HELP_DESKTOP, string>)
-  : HELP_DESKTOP;
+export const HELP = (IS_IOS ? touchify(HELP_DESKTOP) : HELP_DESKTOP) as typeof HELP_DESKTOP;
 
 /** Gallery tile: leads with the tone's own name. */
 export const toneTileHelp = (title: string) =>
