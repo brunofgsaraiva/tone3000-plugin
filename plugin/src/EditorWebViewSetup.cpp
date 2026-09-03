@@ -878,7 +878,104 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             })();
 
             console.log("Main WebView: JUCE C++ Backend loaded");
-          )");
+          )")
+#if JUCE_IOS
+      // Fork-local mitigation for the six-box one-time-code entry on the
+      // TONE3000 site login page. On iOS the keyboard's one-time-code
+      // suggestion, and a paste, land the whole code in a single box; the
+      // site's boxes each take one character, so only the first is filled.
+      // The proper fix belongs on tone3000.com; this keeps the in-app login
+      // usable until then. iOS only, so every desktop build's injected
+      // script stays byte-identical. JUCE joins all user scripts into one
+      // WKUserScript at document start, main frame only, so this defers
+      // itself to document end instead of asking for a second injection
+      // time, and sits last in the chain so its own log goes through the
+      // console shim above. See docs/ios.md.
+      .withUserScript(R"JS(
+// __T3K_OTP_HELPER_BEGIN__
+(function () {
+  try {
+    if (!/(^|\.)tone3000\.com$/.test(location.hostname) || window.__t3kOtpHelper) return;
+    window.__t3kOtpHelper = true;
+    console.log('t3k: otp paste helper active on ' + location.hostname);
+    var busy = false, pending = false;
+    var isBox = function (el) {
+      if (!el || el.tagName !== 'INPUT') return false;
+      return el.maxLength === 1 || (el.getAttribute('inputmode') || '') === 'numeric';
+    };
+    var groupOf = function (el) {
+      var p = el.parentElement;
+      if (!p) return null;
+      var g = Array.prototype.filter.call(p.children, isBox);
+      return g.length >= 4 && g.length <= 8 && g.indexOf(el) >= 0 ? g : null;
+    };
+    var setValue = function (el, v) {
+      var d = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      if (d && d.set) d.set.call(el, v);
+      else el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    var distribute = function (group, start, text) {
+      var digits = String(text == null ? '' : text).replace(/\D/g, '');
+      if (digits.length < 2) return false;
+      busy = true;
+      try {
+        for (var i = 0, k = start; k < group.length && i < digits.length; k++, i++)
+          setValue(group[k], digits.charAt(i));
+        var last = Math.min(start + digits.length, group.length) - 1;
+        var next = group[last + 1] || group[last];
+        if (next && next.focus) next.focus();
+      } finally {
+        busy = false;
+      }
+      return true;
+    };
+    document.addEventListener('paste', function (e) {
+      try {
+        if (busy || !isBox(e.target)) return;
+        var g = groupOf(e.target);
+        var cd = e.clipboardData || window.clipboardData;
+        if (g && cd && distribute(g, g.indexOf(e.target), cd.getData('text'))) e.preventDefault();
+      } catch (err) {}
+    }, true);
+    document.addEventListener('input', function (e) {
+      try {
+        if (busy || !isBox(e.target)) return;
+        var v = e.target.value || '';
+        if (v.replace(/\D/g, '').length < 2) return;
+        var g = groupOf(e.target);
+        if (g) distribute(g, g.indexOf(e.target), v);
+      } catch (err) {}
+    }, true);
+    var hint = function () {
+      try {
+        var boxes = document.querySelectorAll('input');
+        for (var i = 0; i < boxes.length; i++) {
+          if (!isBox(boxes[i]) || boxes[i].hasAttribute('data-t3k-otp')) continue;
+          var g = groupOf(boxes[i]);
+          if (!g || g[0].hasAttribute('data-t3k-otp')) continue;
+          g[0].setAttribute('data-t3k-otp', '1');
+          g[0].setAttribute('autocomplete', 'one-time-code');
+          g[0].setAttribute('inputmode', 'numeric');
+        }
+      } catch (err) {}
+    };
+    var start = function () {
+      hint();
+      new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () { pending = false; hint(); });
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start) : start();
+  } catch (err) {}
+})();
+// __T3K_OTP_HELPER_END__
+          )JS")
+#endif
+      ;
 }
 
 }  // namespace EditorWebViewSetup
