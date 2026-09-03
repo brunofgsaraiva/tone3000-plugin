@@ -258,6 +258,8 @@ const HELP_DESKTOP = {
   closeToneBrowser: 'Close: back to the chain.',
   copyBlock: 'Copy: copy this block (tone, model and all settings).',
   pasteBlock: 'Paste: add a copy of the copied block in this slot.',
+  // iOS only: the touch route to the desktop's option-drag duplicate.
+  duplicateBlock: 'Duplicate: add a copy of this block right after it.',
   loadFileTile: 'Load File: pick a local .nam or IR .wav file to load here. No account needed.',
   // iOS only: the single row that replaces Load File and Load Folder.
   loadFilesTile:

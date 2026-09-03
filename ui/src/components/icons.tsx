@@ -15,6 +15,7 @@ import {
   Circle as LCircle,
   ClipboardPaste as LClipboardPaste,
   Copy as LCopy,
+  CopyPlus as LCopyPlus,
   Download as LDownload,
   Ellipsis as LEllipsis,
   Equal as LEqual,
@@ -83,6 +84,7 @@ export const ChevronUp = scaled(LChevronUp, 'ChevronUp');
 export const Circle = scaled(LCircle, 'Circle');
 export const ClipboardPaste = scaled(LClipboardPaste, 'ClipboardPaste');
 export const Copy = scaled(LCopy, 'Copy');
+export const CopyPlus = scaled(LCopyPlus, 'CopyPlus');
 export const Download = scaled(LDownload, 'Download');
 export const Ellipsis = scaled(LEllipsis, 'Ellipsis');
 export const Equal = scaled(LEqual, 'Equal');
