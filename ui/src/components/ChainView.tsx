@@ -29,6 +29,7 @@ import {
 import { GALLERY_DRAG_DISTANCE_PX } from './GalleryBlock';
 import { useChainActions } from '../hooks/useChainActions';
 import { useEdgeSwipeBack } from '../hooks/useTouchGestures';
+import { haptic } from '../backend/JuceBackend';
 import { useHorizontalWheelScroll } from '../hooks/useHorizontalWheelScroll';
 import { FONT_MONO, WHITE } from './theme';
 import type { ChainBranch, ChainItem, ChainSide, ToneBlock } from '../types/chain';
@@ -274,6 +275,7 @@ export const ChainView: React.FC<ChainViewProps> = ({
 
   const handleDragStart = (event: DragStartEvent, manager: DragDropManager) => {
     draggingRef.current = true;
+    haptic('medium'); // lift
     const id = String(event.operation.source?.id);
     setActiveDrag([...lanes.left, ...lanes.right].find((i) => i.blockId === id) ?? null);
     // Seed from the press that started the drag; the tracker effect keeps it
@@ -327,6 +329,7 @@ export const ChainView: React.FC<ChainViewProps> = ({
 
   const handleDragEnd = (event: DragEndEvent) => {
     draggingRef.current = false;
+    haptic('light'); // drop
     setActiveDrag(null);
     const duplicating = altDragRef.current;
     altDragRef.current = false;

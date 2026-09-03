@@ -816,6 +816,12 @@ back on the chain); `p7-i4-tuner-open.png` then
 `p7-i4-swipe-down-dismissed.png`. Settings dismissal was driven the same way
 and returned to the chain.
 
+**Second bite from the same glob.** A scratch `iostest.html` written into
+`plugin/webview` for the touch-target audit got baked into the configure-time
+asset list; deleting the file then broke the *macOS* build with "No rule to
+make target .../iostest.html". Never put scratch files in `plugin/webview`,
+and reconfigure after removing one.
+
 **Trap found, and it invalidates "I rebuilt, so I tested the new UI".**
 `plugin/CMakeLists.txt` collects the webview with `file(GLOB_RECURSE)`, which
 runs at **configure** time. Vite's asset names are content-hashed, so any CSS
@@ -936,6 +942,37 @@ Options put to the owner, who chose 2 with N=3:
    small growth; N=4 shrinks the tiles.
 3. **Split the difference.** Grow the tile to the lane height minus a margin
    but cap it at a fraction of the width so at least three stay visible.
+
+### P7 item 2, haptics
+
+`Haptics.h` / `Haptics.mm` are the same platform-shim pattern as
+`AudioPermissions`: `impact("medium"|"light")` drives
+`UIImpactFeedbackGenerator` under `#if JUCE_IOS` and compiles to an empty
+function everywhere else. Registered as the `haptic` native function on every
+platform so the UI can probe once, and called from `ChainView`'s
+`handleDragStart` (medium, lift) and `handleDragEnd` (light, drop).
+
+Proved on the Simulator with a temporary log, since a simulator has no Taptic
+Engine:
+
+```
+[haptic] medium ios=true registered=true
+[haptic] light  ios=true registered=true
+```
+
+That is the bridge end to end: the native function is registered, the UI
+calls it at both ends of a real touch-and-hold drag, and the ObjC++ side runs
+without taking the app down. **The buzz itself is unproved** and only the
+owner can confirm it, on the iPad.
+
+Getting a draggable tile at all is worth recording: **tapping a Trending card
+opens the login page**, so nothing loads from the catalogue while signed out.
+Local files do: SELECT TONE > On this iPad > Load file > the Files picker.
+Two tiles loaded that way in `p7-haptics-two-local-tiles.png`.
+
+Careful with the tile glow as a marker: it tracks the *slot's* signal, not the
+block, so it does not move with a reordered tile. Mark a block by bypassing
+it, not by its glow.
 
 ## Handoff
 

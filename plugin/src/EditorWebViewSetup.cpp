@@ -1,5 +1,6 @@
 #include "EditorWebViewSetup.h"
 #include "Editor.h"
+#include "Haptics.h"
 
 namespace EditorWebViewSetup {
 
@@ -169,6 +170,14 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
       .withOptionsFrom(editor->inputCalibrationLevelRelay)
       .withOptionsFrom(editor->osEnabledRelay)
       .withOptionsFrom(editor->osFactorRelay)
+      // (weight): Taptic feedback for the iPad tile drag. Registered on every
+      // platform so the UI can probe for it once; the implementation is a
+      // no-op off iOS (see Haptics.h).
+      .withNativeFunction("haptic",
+                          guarded(1, juce::var(), [](const juce::Array<juce::var>& args) {
+                            Haptics::impact(args[0].toString().toRawUTF8());
+                            return juce::var();
+                          }))
       // --- Chain mutations -------------------------------------------------
       .withNativeFunction(
           // (toneJson, targetInsertId?): the tone lands in the insert slot

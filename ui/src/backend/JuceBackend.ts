@@ -1,4 +1,5 @@
 import * as Juce from '@juce-framework/webview';
+import { IS_IOS } from '../hooks/useUiScale';
 import type {
   IAudioBackend,
   ParameterType,
@@ -137,3 +138,11 @@ function adaptComboBox(comboBox: ComboBoxState): ComboBoxParameter {
     requestInitialUpdate: () => requestInitialUpdate(comboBox),
   };
 }
+
+/** Taptic feedback on iOS; a no-op on every other platform and in the dev
+    browser, where the native function is not registered. Fire and forget:
+    nothing in the UI waits on a buzz. */
+export const haptic = (weight: 'medium' | 'light'): void => {
+  if (!IS_IOS || !isNativeFunctionRegistered('haptic')) return;
+  void Juce.getNativeFunction('haptic')(weight);
+};

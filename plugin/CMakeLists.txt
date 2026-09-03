@@ -285,6 +285,8 @@ if (NOT HEADLESS)
         # Space passthrough to the host DAW (see WindowKeyEvents.mm).
         target_sources(${PROJECT_NAME} PRIVATE src/WindowKeyEvents.mm)
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.mm)
+        # Taptic feedback for the iPad tile drag (no-op off iOS).
+        target_sources(${PROJECT_NAME} PRIVATE src/Haptics.mm)
     else()
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.cpp)
         # Space passthrough to the host DAW (see WindowKeyEvents.cpp).
