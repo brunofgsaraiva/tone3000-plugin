@@ -23,10 +23,6 @@ void impact(const char* weight) {
   [generator release];
 }
 
-#else
-
-void impact(const char*) {}
-
 #endif
 
 }  // namespace Haptics
