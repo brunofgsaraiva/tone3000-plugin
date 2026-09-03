@@ -1,6 +1,7 @@
 #include "StandaloneAudioSettings.h"
 
 #include "AudioPermissions.h"
+#include "IosAudioRoute.h"
 #include "Processor.h"
 
 // The standalone filter window header expects the full GUI/audio module set
@@ -116,6 +117,9 @@ StandaloneAudioSettings::StandaloneAudioSettings(TONE3000Processor& p,
   jassert(isAvailable());
   if (auto* dm = deviceManager())
     dm->addChangeListener(this);
+  // iOS: drop the Bluetooth headset mic route JUCE asks for (see
+  // IosAudioRoute.h). No-op off iOS.
+  IosAudioRoute::disallowBluetoothHfp();
   ensureInitialPolicies();
 }
 
@@ -135,6 +139,9 @@ void StandaloneAudioSettings::changeListenerCallback(juce::ChangeBroadcaster*) {
   // sync policies, then push the UI to re-pull state.
   ensureInitialPolicies();
   applyMonitoringPolicy();
+  // Re-applied here because JUCE sets the category when it opens a device;
+  // its own route-change restart path does not, so this is the reopen hook.
+  IosAudioRoute::disallowBluetoothHfp();
   if (onDeviceStateChanged)
     onDeviceStateChanged();
 }
@@ -237,6 +244,11 @@ juce::var StandaloneAudioSettings::getState() {
   // OS mic gate: on macOS a "denied" state silently kills all audio input,
   // so the UI surfaces it (banner + inline alert) with a jump to the fix.
   obj->setProperty("micPermission", micStatusString(AudioPermissions::getMicStatus()));
+
+  // iOS: a Bluetooth route caps the session at 16 or 24 kHz and adds
+  // latency; the UI turns this into one plain-language tip. Always false on
+  // desktop.
+  obj->setProperty("bluetoothRoute", IosAudioRoute::isBluetoothRoute());
 
   // MIDI inputs, re-enumerated per pull like the audio devices above (the UI
   // polls while the tab is open, which is also our hot-plug detection; the
