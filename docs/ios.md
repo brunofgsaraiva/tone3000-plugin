@@ -61,6 +61,7 @@ Simulator screenshots come out portrait while the app renders landscape.
 | hold, release without moving | tile menu at that point |
 | `...` on a tile | the same menu, visibly |
 | hold on the Spread / Align group | the advanced deck (desktop: right-click) |
+| tile menu, **Duplicate** | clone the block (desktop: option-drag) |
 | press a control | its help in the info bar; release clears it |
 | drag a knob | adjust, with the value in a bubble above it |
 | double tap a knob | reset to default |
@@ -77,6 +78,49 @@ The player-facing wording of this table lives in
 Every touch target meets 44 pt through one rule in `index.css` under
 `html.t3k-ios`: an invisible `::after` at `max(100%, 44px)`, centred and out
 of flow, so no layout changes.
+
+## The in-app tone3000.com pages
+
+The OAuth flows (Login, Browse) navigate the one main webview away from the
+plugin UI to tone3000.com. Desktop keeps its window title bar and asks the
+site for its own `menubar=true` strip, which carries a close button, so
+backing out is always one click away. An iPad has neither, and the site's
+strip is a ~24 px target that is not on every step of the sign-in flow, so
+the login page was a one-way door: the plugin UI was gone until the app was
+relaunched.
+
+The app therefore draws its own strip rather than relying on the site's, and
+does not ask for `menubar` on iOS (two navigation bars would stack):
+
+| control | does |
+| ------- | ---- |
+| `‹` `›` | the webview's own back / forward |
+| `↻` | reload |
+| **Close** | back to the plugin UI |
+| swipe in from the left edge | back, through WKWebView's own gesture |
+
+Every button is 44 pt. The strip appears only while the view is off the
+plugin UI: `GuardedWebView::onRemotePageChanged` reports both edges of that
+transition and nothing attaches to it off iOS.
+
+Close navigates home with **no** OAuth query. The site's cancel redirect
+carries the flow's `state`, and forging one fails the callback's state check
+(`state_mismatch`); a plain load mounts React fresh, which is the `idle`
+phase by construction, so no busy overlay hangs. Chain state lives natively
+and tokens in localStorage, so the reload costs nothing, the same reasoning
+as `pageLoadHadNetworkError`'s recovery.
+
+The left-edge swipe here is the platform's, not the app's: React is not
+running once the view has navigated away, so `useEdgeSwipeBack` cannot cover
+these pages. `IosWebViewGestures` sets `allowsBackForwardNavigationGestures`
+on the WKWebView instead, which JUCE never does.
+
+**The login page's pre-filled email and auto-sent code are the site's, not
+ours.** The app sets neither `otp_only` nor `login_hint`; both come from the
+tone3000.com session on that device. Signed out on the Simulator the page
+opens with an empty field and a disabled **Send Code**. The account pill is
+one button opening one menu (Settings, Gestures, Login/Logout), so no single
+tap enters a login.
 
 ## Onboarding
 
@@ -100,6 +144,41 @@ closes: a sheet swiped away or killed with the app has still been shown. The
 
 The decision to auto-open is the pure `shouldAutoOpenGestures(isIos, seen)` in
 `ui/src/components/gestureGuide.ts`, covered by `ui/test/gestureGuide.test.ts`.
+
+## Factory presets
+
+Desktop gets the seven `.t3kpreset` files from its installer, into a shared
+read-only directory `PresetManager` scans as the factory section. iOS has no
+installer and no shared directory, so a fresh install showed "No presets yet".
+
+The app bundle carries them instead: the Standalone target copies
+`resources/factory-presets` into `Resources/FactoryPresets` and
+`defaultSystemFactoryDir` points there under `JUCE_IOS`. Read-only, which is
+the contract that directory already had, and a user `Factory` folder still
+overlays it exactly as on desktop. They embed their model bytes, so they load
+signed out and offline.
+
+## Session restore
+
+iOS never sends `systemRequestedQuit`, which is the standalone wrapper's only
+`savePluginState` call site: the OS backgrounds an app and kills it whenever
+it likes, and `shutdown()` saves only the audio-device settings. So nothing
+was ever written and every relaunch opened on an empty chain, local blocks and
+catalogue blocks alike. It read like local models being dropped on restore;
+it was no restore at all.
+
+`IosAppLifecycle` observes `UIApplicationDidEnterBackground` and
+`UIApplicationWillTerminate`, and the editor saves through the wrapper's own
+`savePluginState` on either, then flushes the `PropertiesFile`: its auto-save
+timer will not fire on a process the OS is about to suspend.
+
+The serialization was never the problem. `captureChainSnapshot(true)` embeds
+the model bytes for local and catalogue blocks alike, and the round trip is
+already covered by the state tests; only the trigger was missing.
+
+Known limit: a kill with no background transition first (a debugger stop, a
+foreground crash) still loses the session, because there is no notification
+to hang the save on.
 
 ## Local import
 
@@ -151,6 +230,10 @@ complete (see Known gaps).
 | Per-block EQ | faders and curve dots both drag; the response redraws |
 | Block swap / remove | swap opens SELECT TONE for that block; remove takes it out |
 | Block info / share | **not tested**: both controls exist only for a catalogue tone |
+| In-app browser chrome | Login opens with the 44 pt strip; **Close** returns to the plugin UI with no error overlay |
+| Factory presets | the TONE3000 section lists all seven; Matchless Crunch loads both blocks and processes, signed out |
+| Tile menu **Duplicate** | clones a loaded block; undo removes the clone |
+| Session restore | local `.nam` block, Home, `simctl terminate`, relaunch: the block comes back loaded |
 | Bluetooth MIDI pairing | **not testable on the Simulator**: JUCE compiles the dialogue out under `TARGET_IPHONE_SIMULATOR`, so the button is hidden there. It is wired (System Settings → MIDI Inputs → **Bluetooth MIDI** → `BluetoothMidiDevicePairingDialogue::open()`) and the app carries `NSBluetoothAlwaysUsageDescription` |
 
 ## Platform notes worth knowing
@@ -240,6 +323,10 @@ complete (see Known gaps).
 - The double-tap knob reset is proved in a browser against the same bundle,
   not on a device: two taps cannot be driven inside 300 ms through the
   Simulator automation bridge.
+- The info bar's stale-hint fix is proved only in the negative: after the
+  change the bar is empty on the screen you navigate to, but the original
+  stale pin could not be forced on the Simulator, which cannot reliably
+  produce the interrupted drag that strands it.
 - Dragging a `.nam` from Files onto a tile is untested. The receiving code is
   the same HTML5 drop path the desktop uses, and the app does window alongside
   Files, but the drag could not be driven from the automation.
