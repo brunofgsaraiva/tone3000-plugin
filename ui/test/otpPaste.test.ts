@@ -35,6 +35,7 @@ function makeDom(host: string, count: number) {
     }
     setAttribute(n: string, v: string) {
       this.attrs[n] = v;
+      if (n === 'maxlength') this.maxLength = Number(v);
     }
     hasAttribute(n: string) {
       return Object.prototype.hasOwnProperty.call(this.attrs, n);
@@ -94,6 +95,15 @@ const paste = (win: any, box: any, text: string) => {
   return e;
 };
 
+const beforeInput = (win: any, box: any, data: string, inputType = 'insertText') => {
+  const e = new win.Event('beforeinput');
+  e.target = box;
+  e.data = data;
+  e.inputType = inputType;
+  win.document.dispatchEvent(e);
+  return e;
+};
+
 const typeInto = (win: any, box: any, text: string) => {
   box.value = text;
   const e = new win.Event('input');
@@ -141,6 +151,42 @@ test('the first box is marked so iOS offers the code suggestion', () => {
   assert.equal(boxes[0].getAttribute('autocomplete'), 'one-time-code');
   assert.equal(boxes[0].getAttribute('inputmode'), 'numeric');
   assert.equal(boxes[1].getAttribute('autocomplete'), null);
+  // Relaxed so an autofill that never fires beforeinput is not clipped to
+  // one character before we can see it.
+  assert.equal(boxes[0].maxLength, 6);
+});
+
+// The keyboard's one-time-code suggestion: WebKit clips the insertion to
+// maxlength before the input event, so beforeinput is the only place the
+// whole code is still visible.
+test('beforeinput carrying the whole code fills all six', () => {
+  const { win, boxes } = makeDom('www.tone3000.com', 6);
+  const e = beforeInput(win, boxes[0], '123456');
+  assert.equal(values(boxes), '123456');
+  assert.equal(e.defaultPrevented, true);
+});
+
+test('beforeinput of a single digit is left to the page', () => {
+  const { win, boxes } = makeDom('www.tone3000.com', 6);
+  const e = beforeInput(win, boxes[0], '7');
+  assert.equal(e.defaultPrevented, false);
+  assert.equal(values(boxes), '');
+});
+
+test('a deletion is never treated as a code', () => {
+  const { win, boxes } = makeDom('www.tone3000.com', 6);
+  const e = beforeInput(win, boxes[0], '123456', 'deleteContentBackward');
+  assert.equal(e.defaultPrevented, false);
+});
+
+// Belt and braces: an autofill that bypasses beforeinput lands whole in the
+// relaxed first box, and the input path spreads it and restores maxlength.
+test('an autofill landing whole in the relaxed first box is spread', () => {
+  const { win, boxes } = makeDom('www.tone3000.com', 6);
+  assert.equal(boxes[0].maxLength, 6);
+  typeInto(win, boxes[0], '123456');
+  assert.equal(values(boxes), '123456');
+  assert.equal(boxes[0].maxLength, 1);
 });
 
 test('the helper stays off any other host', () => {
