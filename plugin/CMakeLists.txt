@@ -265,6 +265,7 @@ if (NOT HEADLESS)
             src/Editor.cpp
             include/EditorWebViewSetup.h
             src/EditorWebViewSetup.cpp
+            include/IosAppLifecycle.h
             include/IosBrowserChrome.h
             include/IosWebViewGestures.h
             include/StandaloneAudioSettings.h
@@ -292,6 +293,8 @@ if (NOT HEADLESS)
         # WKWebView back/forward swipes on the in-app tone3000.com pages
         # (see IosWebViewGestures.h); no-op off iOS.
         target_sources(${PROJECT_NAME} PRIVATE src/IosWebViewGestures.mm)
+        # Save the chain when iOS backgrounds the app (see IosAppLifecycle.h).
+        target_sources(${PROJECT_NAME} PRIVATE src/IosAppLifecycle.mm)
     else()
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.cpp)
         # Space passthrough to the host DAW (see WindowKeyEvents.cpp).

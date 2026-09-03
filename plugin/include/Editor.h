@@ -99,6 +99,13 @@ private:
   // resized() gives it the top strip and shortens the webview to match.
   std::unique_ptr<IosBrowserChrome> browserChrome;
   void setBrowserChromeVisible(bool visible);
+
+  // iOS never sends systemRequestedQuit, so the standalone wrapper's only
+  // save-plugin-state call site never runs and the chain was lost on every
+  // relaunch. Save when the OS backgrounds us instead; see
+  // IosAppLifecycle.h and saveStandaloneState().
+  void* lifecycleObserver = nullptr;
+  static void saveStandaloneState();
 #endif
 
   // Guards against loading the main URL before the editor has a real
