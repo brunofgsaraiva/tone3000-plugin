@@ -1125,6 +1125,60 @@ this file said the tile glow could not provide).
 
 macOS Release regression build after this item: green, 0 errors.
 
+### Preset drag reorder on touch, and the two hint strings
+
+Verified on the Simulator with a 12-preset list (ten clones written straight
+into `Library/TONE3000/Presets`, so the list overflows its `362rem` box):
+
+- A swipe anywhere in the list **scrolls** it and reorders nothing
+  (`p5-preset-list-scroll.png`). Structural, not luck: `PresetRow` passes
+  dnd-kit a `handleRef`, so the sensor binds `pointerdown` to the grip button
+  alone - `source.handle ?? source.element` in `PointerSensor.bind` - and the
+  row is never an activator.
+- Reorder mode on, **touch and hold the grip, then drag** moves the row
+  (`p5-preset-reorder-before.png` -> `p5-preset-reorder-after.png`:
+  AlphaBeta goes from first to third). No sensor change was needed:
+  `PresetBar` uses `DragDropProvider`'s stock sensors, and dnd-kit's own
+  default for `pointerType === 'touch'` is already
+  `Delay({ value: 250, tolerance: 5 })` - the same rule `ChainView` had to
+  restore by hand only because it overrides `activationConstraints`.
+
+So the gesture is exactly what the HIG asks for, and the two hint strings that
+still said "drag" now say so on iOS: `presetReorder` and `presetDrag` are
+branched by hand (like `addTile`), because `touchify` only swaps the noun for
+"press this" and a blanket `drag` -> `touch and hold, then drag` would also
+rewrite the knob legend, where a plain drag is correct.
+
+### Stereo: the tiles scale too, under the same three-across rule
+
+`STEREO_TILE_SIZE` stayed at 160 when the mono tile grew to 249, so the two
+stereo lanes floated in the same black band the mono row had before P7.
+
+`monoTileSize` became `laneTileSize(lane, rows, design)`: the same width cap
+(three across, minus the edge fades and the gaps) and the same height budget,
+divided by the number of lanes sharing it, with the lane gap taken out first.
+Mono passes `rows: 1, design: TILE_SIZE`, stereo `rows: 2,
+design: STEREO_TILE_SIZE`, so both can only grow from their design size and
+desktop is untouched (the function returns `design` when not iOS).
+
+`StereoPanRail` hardcoded `STEREO_TILE_SIZE * 2 + LANE_GAP` for its own
+height, so it now takes `tileSize` like every other consumer.
+
+Measured off the drawn borders on the Simulator, in design px:
+
+| | before | after |
+| --- | --- | --- |
+| mono tile | 249 | 249 (unchanged) |
+| stereo tile | 160 | 209 |
+| two-lane stack | 344 | 442 |
+
+Stereo lands at 209 rather than mono's 249 because the width cap binds and the
+pan rail takes ~123 px out of the band; the height would have allowed 228.
+Three tiles fully visible per lane, the fourth peeking, exactly as in mono
+(`p5-stereo-two-lanes.png` before, `p5-stereo-tiles-after.png` after).
+
+macOS Release regression build after this item: green, 0 errors.
+
 ## Handoff
 
 State as of the tip of `ios-spike`. Everything below is either done and

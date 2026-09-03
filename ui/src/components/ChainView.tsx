@@ -128,16 +128,27 @@ const LANE_MARGIN = 40;
     the lane scrolls, exactly as it does today. */
 const TILES_ACROSS = 3;
 
-/** Mono tile size. The design's 224 everywhere except iOS, where the tile
-    grows into the lane's spare height, capped by the width three tiles need
-    and never smaller than the design. */
-const monoTileSize = (lane: { w: number; h: number } | null): number => {
-  if (!IS_IOS || lane == null) return TILE_SIZE;
+/** Tile size for the lane band. The design's size everywhere except iOS,
+    where the tile grows into the band's spare height, capped by the width
+    TILES_ACROSS need and never smaller than the design.
+
+    `rows` is the number of lanes sharing the band's height: 1 in mono, 2 in
+    stereo, where the two lanes and the gap between them come out of the same
+    budget. Stereo's design size (160) is the floor there, so the rule can
+    only grow the tile, exactly as in mono. The width term is unchanged
+    between the two: the observed box already excludes the pan rail, since
+    the ResizeObserver sits on the scroll area, not on the whole band. */
+const laneTileSize = (
+  lane: { w: number; h: number } | null,
+  rows: 1 | 2,
+  design: number
+): number => {
+  if (!IS_IOS || lane == null) return design;
   const scale = getUiScale();
   const byWidth =
     (lane.w / scale - 2 * EDGE_FADE_WIDTH - (TILES_ACROSS - 1) * TILE_GAP) / TILES_ACROSS;
-  const byHeight = lane.h / scale - 2 * LANE_MARGIN;
-  return Math.max(TILE_SIZE, Math.floor(Math.min(byWidth, byHeight)));
+  const byHeight = (lane.h / scale - 2 * LANE_MARGIN - (rows - 1) * LANE_GAP) / rows;
+  return Math.max(design, Math.floor(Math.min(byWidth, byHeight)));
 };
 
 type Lanes = Record<ChainSide, ChainItem[]>;
@@ -437,7 +448,9 @@ export const ChainView: React.FC<ChainViewProps> = ({
   }
 
   const stereo = chainRight != null;
-  const tileSize = stereo ? STEREO_TILE_SIZE : monoTileSize(laneBox);
+  const tileSize = stereo
+    ? laneTileSize(laneBox, 2, STEREO_TILE_SIZE)
+    : laneTileSize(laneBox, 1, TILE_SIZE);
 
   // Branched layout: the branch lane starts at the trunk's tap gap, so its
   // row is indented past the whole trunk prefix (matching the signal flow:
@@ -492,7 +505,7 @@ export const ChainView: React.FC<ChainViewProps> = ({
         padding: '0 24rem',
       }}
     >
-      {stereo && <StereoPanRail monoSum={monoSum} />}
+      {stereo && <StereoPanRail monoSum={monoSum} tileSize={tileSize} />}
       <DragDropProvider
         sensors={sensors}
         onDragStart={handleDragStart}
