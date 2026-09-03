@@ -1,6 +1,10 @@
 #include "Editor.h"
 #include "Processor.h"
 
+#if JUCE_IOS && defined(T3K_DEBUG_BRIDGE)
+#include "DebugBridge.h"
+#endif
+
 void TONE3000Editor::parentHierarchyChanged() {
   // iOS runs the standalone window in kiosk mode: it is already exactly the
   // screen, has no title bar to flip on and cannot be resized, so the whole
@@ -70,6 +74,16 @@ void TONE3000Editor::parentHierarchyChanged() {
     // strip the stock WKWebView menu.
     EditorWebViewSetup::setWebInspectorEnabled(
         peer->getNativeHandle(), TONE3000Processor::readPersistedWebInspectorEnabled());
+  }
+#endif
+
+#if JUCE_IOS && defined(T3K_DEBUG_BRIDGE)
+  // Dev-only QA bridge: hand it the view the WKWebView lives under, and start
+  // the server on the first parenting. Never present in a normal build (the
+  // T3K_DEBUG_BRIDGE option is OFF by default). See docs/ios-debug-bridge.md.
+  if (auto* peer = getPeer()) {
+    DebugBridge::setRootView(peer->getNativeHandle());
+    DebugBridge::start();
   }
 #endif
 
@@ -220,6 +234,11 @@ void TONE3000Editor::timerCallback() {
 
 TONE3000Editor::~TONE3000Editor() {
   stopTimer();
+#if JUCE_IOS && defined(T3K_DEBUG_BRIDGE)
+  // Stop the QA server before the webview it drives is destroyed.
+  DebugBridge::stop();
+  DebugBridge::setRootView(nullptr);
+#endif
   // The mapper outlives the editor (it's the processor's); detach our webview
   // hook before the webview dies.
   processor.midiMapper.onChanged = nullptr;

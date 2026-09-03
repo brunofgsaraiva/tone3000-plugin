@@ -40,6 +40,11 @@ option(HEADLESS "Disable GUI (headless/embedded build)" OFF)
 option(BUILD_AAX "Build AAX (Avid) format" ON)
 option(BUILD_LV2 "Build LV2 format (native Linux plugin standard)" ON)
 option(BUILD_CLAP "Build CLAP format (via clap-juce-extensions)" ON)
+# Dev-only QA bridge (iOS): a tiny HTTP server inside the app so a QA harness
+# on the Mac can screenshot, script and tap the UI over the USB tunnel. OFF
+# everywhere by default; never turn it on for anything a user runs.
+# See docs/ios-debug-bridge.md.
+option(T3K_DEBUG_BRIDGE "iOS dev-only QA bridge on port 9999 (never ship this ON)" OFF)
 set(_plugin_formats "VST3") # Default plugin format
 
 # iOS has no desktop plugin host, so none of the plugin formats apply: VST3,
@@ -282,6 +287,20 @@ if (NOT HEADLESS)
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.mm)
         # Taptic feedback for the iPad tile drag (no-op off iOS).
         target_sources(${PROJECT_NAME} PRIVATE src/Haptics.mm)
+        # Dev-only QA bridge: compiled in only when explicitly asked for, and
+        # only on iOS. The sources are additionally self-gated so an accidental
+        # -DT3K_DEBUG_BRIDGE=ON on a desktop build still produces nothing.
+        if (T3K_IOS AND T3K_DEBUG_BRIDGE)
+            target_sources(${PROJECT_NAME}
+                PRIVATE
+                    include/DebugBridge.h
+                    src/DebugBridge.cpp
+                    src/DebugBridgeWebView.mm
+            )
+            target_compile_definitions(${PROJECT_NAME} PRIVATE T3K_DEBUG_BRIDGE=1)
+            target_link_libraries(${PROJECT_NAME} PRIVATE "-framework WebKit")
+            message(WARNING "T3K_DEBUG_BRIDGE is ON: this build exposes an unauthenticated QA server on port 9999. Dev builds only.")
+        endif()
     else()
         target_sources(${PROJECT_NAME} PRIVATE src/WebViewCookies.cpp)
         # Space passthrough to the host DAW (see WindowKeyEvents.cpp).
