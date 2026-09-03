@@ -6,6 +6,7 @@ import {
   ArrowRight,
   ClipboardPaste,
   Copy,
+  CopyPlus,
   Ellipsis,
   File,
   FolderClosed,
@@ -608,6 +609,23 @@ export const GalleryBlock: React.FC<GalleryBlockProps> = React.memo(
                 help: HELP.copyBlock,
                 onSelect: () => actions.copyBlock(blockId),
               },
+              // Desktop duplicates with an option-drag, which touch has no
+              // equivalent for, so on iOS the menu is the whole route. Same
+              // duplicateBlock action the drop path commits, so it lands in
+              // undo history identically. A tile with nothing loaded has
+              // nothing to clone; disabled rather than hidden, because the
+              // row is about this tile's own state, not the lane's shape.
+              ...(IS_IOS
+                ? ([
+                    {
+                      label: 'Duplicate',
+                      icon: <CopyPlus size={16} />,
+                      help: HELP.duplicateBlock,
+                      disabled: !block.loaded,
+                      onSelect: () => actions.duplicateBlock(blockId, group, index + 1),
+                    },
+                  ] as TileMenuItem[])
+                : []),
               // Visible alternative to the drag gesture, per the HIG rule
               // that a gesture is never the only route. Hidden at the ends of
               // the lane rather than dimmed, like every other unavailable row

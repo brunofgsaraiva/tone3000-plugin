@@ -1,4 +1,6 @@
 #pragma once
+
+#include <functional>
 #include <juce_gui_extra/juce_gui_extra.h>
 
 class TONE3000Editor;
@@ -103,6 +105,19 @@ public:
    * the user would otherwise be stranded on a dead page with no way back.
    */
   void setRecoveryUrl(const juce::String& url) { recoveryUrl = url; }
+  const juce::String& getRecoveryUrl() const { return recoveryUrl; }
+
+  /**
+   * Fires when the view moves between the plugin UI and a remote
+   * tone3000.com page (the OAuth login / Browse flows), with `true` while it
+   * is on the remote page. iOS uses it to show its own navigation chrome; on
+   * desktop nothing is attached, so the callback is never set and the
+   * behaviour is unchanged. Both edges are reported once per transition.
+   */
+  std::function<void(bool)> onRemotePageChanged;
+
+  /** True for the https://tone3000.com pages the OAuth flows navigate to. */
+  static bool isRemoteUrl(const juce::String& url);
 
   bool pageAboutToLoad(const juce::String& newUrl) override;
   void newWindowAttemptingToLoad(const juce::String& newUrl) override;
@@ -112,7 +127,10 @@ public:
 private:
   static bool isAllowedUrl(const juce::String& url);
 
+  void reportRemote(const juce::String& url);
+
   juce::String recoveryUrl;
+  bool onRemotePage = false;
   // True while a recovery load is in flight; stops the failure handler from
   // looping if the recovery URL itself fails (dev server down).
   bool recoveryInFlight = false;

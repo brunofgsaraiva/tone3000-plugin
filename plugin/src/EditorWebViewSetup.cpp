@@ -56,16 +56,38 @@ bool GuardedWebView::isAllowedUrl(const juce::String& url) {
   if (url.startsWith("http://localhost:") || url.startsWith("http://127.0.0.1:"))
     return true;
   // The OAuth Select flow navigates the view to tone3000.com and back.
-  const juce::String domain = juce::URL(url).getDomain();
-  if (url.startsWith("https://") &&
-      (domain == "tone3000.com" || domain.endsWith(".tone3000.com")))
+  if (isRemoteUrl(url))
     return true;
   return false;
 }
 
+bool GuardedWebView::isRemoteUrl(const juce::String& url) {
+  if (!url.startsWith("https://"))
+    return false;
+  const juce::String domain = juce::URL(url).getDomain();
+  return domain == "tone3000.com" || domain.endsWith(".tone3000.com");
+}
+
+void GuardedWebView::reportRemote(const juce::String& url) {
+  // about:blank is JUCE hiding the view, not a navigation the user made;
+  // reporting it would flap the chrome off and on mid-flow.
+  if (url == "about:blank")
+    return;
+  const bool remote = isRemoteUrl(url);
+  if (remote == onRemotePage)
+    return;
+  onRemotePage = remote;
+  if (onRemotePageChanged)
+    onRemotePageChanged(remote);
+}
+
 bool GuardedWebView::pageAboutToLoad(const juce::String& newUrl) {
-  if (isAllowedUrl(newUrl))
+  if (isAllowedUrl(newUrl)) {
+    // On the leading edge, so the escape hatch is up before the remote page
+    // paints rather than after it finishes loading.
+    reportRemote(newUrl);
     return true;
+  }
   juce::Logger::writeToLog("Blocked webview navigation to: " + newUrl);
   if (newUrl.startsWith("http://") || newUrl.startsWith("https://"))
     juce::URL(newUrl).launchInDefaultBrowser();
@@ -99,8 +121,11 @@ bool GuardedWebView::pageLoadHadNetworkError(const juce::String& errorInfo) {
   return false;  // never show the platform's built-in error page
 }
 
-void GuardedWebView::pageFinishedLoading(const juce::String&) {
+void GuardedWebView::pageFinishedLoading(const juce::String& url) {
   recoveryInFlight = false;
+  // Back/forward inside the view can restore a page without a
+  // pageAboutToLoad on some backends; this is the backstop.
+  reportRemote(url);
 }
 
 // WebView2's cache/storage folder (Windows only). A stable per-user location
@@ -790,6 +815,28 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
 #endif
             return juce::var(true);
           }))
+      // --- Login hint ------------------------------------------------------
+      // The address the user typed on the TONE3000 sign-in page, captured by
+      // the iOS user script below and replayed as OAuth's `login_hint` on the
+      // next login. Registered on every platform so the UI can call it
+      // unconditionally; only iOS writes it today.
+      .withNativeFunction(
+          "getLoginEmail", guarded(0, juce::var(""), [](const juce::Array<juce::var>&) {
+            return juce::var(TONE3000Processor::readPersistedLoginEmail());
+          }))
+      .withNativeFunction(
+          // (email): "" clears it (Logout). Anything that is not a plausible
+          // address is dropped rather than stored, so a stray page value can
+          // never end up in the settings file.
+          "setLoginEmail", guarded(1, false, [](const juce::Array<juce::var>& args) {
+            const juce::String email = args[0].toString().trim();
+            if (email.isNotEmpty() &&
+                !(email.length() <= 254 && email.containsChar('@') && !email.containsChar(' ') &&
+                  email.fromLastOccurrenceOf("@", false, false).containsChar('.')))
+              return juce::var(false);
+            TONE3000Processor::persistLoginEmail(email);
+            return juce::var(true);
+          }))
 #if JUCE_IOS
       // Platform flag for the web UI, injected at document start so the very
       // first paint already knows. iOS is the only build whose window is a
@@ -853,7 +900,170 @@ juce::WebBrowserComponent::Options buildMainWebViewOptions(TONE3000Editor* edito
             })();
 
             console.log("Main WebView: JUCE C++ Backend loaded");
-          )");
+          )")
+#if JUCE_IOS
+      // Fork-local mitigation for the six-box one-time-code entry on the
+      // TONE3000 site login page. On iOS the keyboard's one-time-code
+      // suggestion, and a paste, land the whole code in a single box; the
+      // site's boxes each take one character, so only the first is filled.
+      // The proper fix belongs on tone3000.com; this keeps the in-app login
+      // usable until then. iOS only, so every desktop build's injected
+      // script stays byte-identical. JUCE joins all user scripts into one
+      // WKUserScript at document start, main frame only, so this defers
+      // itself to document end instead of asking for a second injection
+      // time, and sits last in the chain so its own log goes through the
+      // console shim above. See docs/ios.md.
+      .withUserScript(R"JS(
+// __T3K_OTP_HELPER_BEGIN__
+(function () {
+  try {
+    if (!/(^|\.)tone3000\.com$/.test(location.hostname) || window.__t3kOtpHelper) return;
+    window.__t3kOtpHelper = true;
+    console.log('t3k: otp paste helper active on ' + location.hostname);
+    var busy = false, pending = false;
+    var isBox = function (el) {
+      if (!el || el.tagName !== 'INPUT') return false;
+      if (el.hasAttribute('data-t3k-otp')) return true;
+      return el.maxLength === 1 || (el.getAttribute('inputmode') || '') === 'numeric';
+    };
+    var groupOf = function (el) {
+      var p = el.parentElement;
+      if (!p) return null;
+      var g = Array.prototype.filter.call(p.children, isBox);
+      return g.length >= 4 && g.length <= 8 && g.indexOf(el) >= 0 ? g : null;
+    };
+    var setValue = function (el, v) {
+      var d = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value');
+      if (d && d.set) d.set.call(el, v);
+      else el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    var distribute = function (group, start, text) {
+      var digits = String(text == null ? '' : text).replace(/\D/g, '');
+      if (digits.length < 2) return false;
+      busy = true;
+      try {
+        for (var i = 0, k = start; k < group.length && i < digits.length; k++, i++)
+          setValue(group[k], digits.charAt(i));
+        var last = Math.min(start + digits.length, group.length) - 1;
+        var next = group[last + 1] || group[last];
+        if (next && next.focus) next.focus();
+        if (group[start].maxLength > 1) group[start].setAttribute('maxlength', '1');
+      } finally {
+        busy = false;
+      }
+      return true;
+    };
+    document.addEventListener('paste', function (e) {
+      try {
+        if (busy || !isBox(e.target)) return;
+        var g = groupOf(e.target);
+        var cd = e.clipboardData || window.clipboardData;
+        if (g && cd && distribute(g, g.indexOf(e.target), cd.getData('text'))) e.preventDefault();
+      } catch (err) {}
+    }, true);
+    document.addEventListener('beforeinput', function (e) {
+      try {
+        if (busy || !isBox(e.target)) return;
+        if (e.inputType && e.inputType.indexOf('insert') !== 0) return;
+        var d = String(e.data == null ? '' : e.data).replace(/\D/g, '');
+        if (d.length < 2) return;
+        var g = groupOf(e.target);
+        if (g && distribute(g, g.indexOf(e.target), d)) e.preventDefault();
+      } catch (err) {}
+    }, true);
+    document.addEventListener('input', function (e) {
+      try {
+        if (busy || !isBox(e.target)) return;
+        var v = e.target.value || '';
+        if (v.replace(/\D/g, '').length < 2) return;
+        var g = groupOf(e.target);
+        if (g) distribute(g, g.indexOf(e.target), v);
+      } catch (err) {}
+    }, true);
+    var hint = function () {
+      try {
+        var boxes = document.querySelectorAll('input');
+        for (var i = 0; i < boxes.length; i++) {
+          if (!isBox(boxes[i]) || boxes[i].hasAttribute('data-t3k-otp')) continue;
+          var g = groupOf(boxes[i]);
+          if (!g || g[0].hasAttribute('data-t3k-otp')) continue;
+          g[0].setAttribute('data-t3k-otp', '1');
+          g[0].setAttribute('autocomplete', 'one-time-code');
+          g[0].setAttribute('inputmode', 'numeric');
+          g[0].setAttribute('maxlength', String(g.length));
+        }
+      } catch (err) {}
+    };
+    var start = function () {
+      hint();
+      new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () { pending = false; hint(); });
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start) : start();
+  } catch (err) {}
+})();
+// __T3K_OTP_HELPER_END__
+          )JS")
+      // Remember the address typed on the sign-in page so the next login can
+      // pre-fill it (OAuth `login_hint`). GET /api/v1/user never returns an
+      // email, so the page itself is the only place it exists. iOS only: this
+      // is the only platform whose login happens inside the plugin webview.
+      // See docs/ios.md.
+      .withUserScript(R"JS(
+// __T3K_LOGIN_EMAIL_BEGIN__
+(function () {
+  try {
+    if (!/(^|\.)tone3000\.com$/.test(location.hostname) || window.__t3kLoginEmail) return;
+    window.__t3kLoginEmail = true;
+    console.log('t3k: login email capture active on ' + location.hostname);
+    var last = '';
+    var valid = function (v) {
+      return typeof v === 'string' && v.length > 3 && v.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+    };
+    var send = function (v) {
+      var email = String(v == null ? '' : v).trim();
+      if (!valid(email) || email === last) return false;
+      last = email;
+      var payload = { name: 'setLoginEmail', params: [email], resultId: -1 };
+      // Same envelope as the console shim above: backend only exists once the
+      // plugin bundle has loaded, which it has not on a tone3000.com page.
+      if (window.__JUCE__.backend) window.__JUCE__.backend.emitEvent('__juce__invoke', payload);
+      else window.__JUCE__.postMessage(JSON.stringify({ eventId: '__juce__invoke', payload: payload }));
+      console.log('t3k: login email remembered');
+      return true;
+    };
+    var scan = function (root) {
+      try {
+        var f = (root || document).querySelectorAll('input[type=email], input[name=email]');
+        for (var i = 0; i < f.length; i++)
+          if (send(f[i].value)) return true;
+      } catch (err) {}
+      return false;
+    };
+    document.addEventListener('submit', function (e) { scan(e.target); }, true);
+    var pending = false;
+    var start = function () {
+      // The code step renders a hidden input[name=email] carrying the address,
+      // which also covers a submit the site handles without a submit event.
+      scan();
+      new MutationObserver(function () {
+        if (pending) return;
+        pending = true;
+        requestAnimationFrame(function () { pending = false; scan(); });
+      }).observe(document.documentElement, { childList: true, subtree: true });
+    };
+    document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded', start) : start();
+  } catch (err) {}
+})();
+// __T3K_LOGIN_EMAIL_END__
+          )JS")
+#endif
+      ;
 }
 
 }  // namespace EditorWebViewSetup

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { IS_IOS } from '../hooks/useUiScale';
 
 /**
@@ -48,6 +48,34 @@ export const unpinHelp = (text: string) => {
   if (pinned !== text) return;
   pinned = null;
   emit();
+};
+
+/**
+ * Drop whatever the bar is showing, pinned or hovered.
+ *
+ * On touch the bar captions the control under the finger and clears on
+ * release, but a pin outlives its control when the release never arrives at
+ * the pinning element: a drag that ends in a `pointercancel` (WKWebView takes
+ * a swipe over), or a control unmounted mid-interaction by the navigation the
+ * same gesture caused. The hint then rode along to the next screen, so a band
+ * fader's help line was still captioning SIGNAL CHAIN.
+ */
+export const clearHelp = () => {
+  if (pinned === null && hoverText === null) return;
+  pinned = null;
+  hoverText = null;
+  emit();
+};
+
+/**
+ * Clear the bar whenever `screenKey` changes, iOS only. Desktop keeps its
+ * hover behaviour untouched: there the pointer is still over whatever it is
+ * over after a navigation, and clearing would fight the next mouseover.
+ */
+export const useClearHelpOnScreenChange = (screenKey: unknown) => {
+  useEffect(() => {
+    if (IS_IOS) clearHelp();
+  }, [screenKey]);
 };
 
 let delegationInstalled = false;
@@ -258,6 +286,8 @@ const HELP_DESKTOP = {
   closeToneBrowser: 'Close: back to the chain.',
   copyBlock: 'Copy: copy this block (tone, model and all settings).',
   pasteBlock: 'Paste: add a copy of the copied block in this slot.',
+  // iOS only: the touch route to the desktop's option-drag duplicate.
+  duplicateBlock: 'Duplicate: add a copy of this block right after it.',
   loadFileTile: 'Load File: pick a local .nam or IR .wav file to load here. No account needed.',
   // iOS only: the single row that replaces Load File and Load Folder.
   loadFilesTile:

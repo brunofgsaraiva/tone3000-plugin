@@ -186,11 +186,7 @@ endif()
 # LSMinimumSystemVersion is a macOS Launch Services key; on iOS the deployment
 # target already rides in the binary and MinimumOSVersion, so merging a macOS
 # key there would just be noise in the plist.
-if (T3K_IOS AND T3K_DEBUG_BRIDGE)
-    # The QA build sits next to the real app on the same device: give it a
-    # distinct home-screen name so the two are never confused.
-    set(_t3k_plist_to_merge PLIST_TO_MERGE "<plist version=\"1.0\"><dict><key>CFBundleDisplayName</key><string>T3K QA</string></dict></plist>")
-elseif (T3K_IOS)
+if (T3K_IOS)
     set(_t3k_plist_to_merge "")
 else()
     set(_t3k_plist_to_merge PLIST_TO_MERGE "<plist version=\"1.0\"><dict><key>LSMinimumSystemVersion</key><string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string></dict></plist>")
@@ -274,12 +270,17 @@ if (NOT HEADLESS)
             src/Editor.cpp
             include/EditorWebViewSetup.h
             src/EditorWebViewSetup.cpp
+            include/IosAppLifecycle.h
+            include/IosBrowserChrome.h
+            include/IosWebViewGestures.h
             include/StandaloneAudioSettings.h
             src/StandaloneAudioSettings.cpp
     )
     # OS microphone-permission shim: AVFoundation (ObjC++) on macOS, a
     # best-effort stub elsewhere (see AudioPermissions.h).
     target_sources(${PROJECT_NAME} PRIVATE include/AudioPermissions.h)
+    # iOS audio-route shim; header-only no-op on Windows and Linux.
+    target_sources(${PROJECT_NAME} PRIVATE include/IosAudioRoute.h)
     # Webview session clearing is platform-specific: WKWebsiteDataStore needs
     # ObjC++ on Apple; elsewhere a best-effort JUCE fallback.
     if (APPLE)
@@ -291,6 +292,14 @@ if (NOT HEADLESS)
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.mm)
         # Taptic feedback for the iPad tile drag (no-op off iOS).
         target_sources(${PROJECT_NAME} PRIVATE src/Haptics.mm)
+        # AVAudioSession route query + the Bluetooth HFP opt-out (see
+        # IosAudioRoute.h).
+        target_sources(${PROJECT_NAME} PRIVATE src/IosAudioRoute.mm)
+        # WKWebView back/forward swipes on the in-app tone3000.com pages
+        # (see IosWebViewGestures.h); no-op off iOS.
+        target_sources(${PROJECT_NAME} PRIVATE src/IosWebViewGestures.mm)
+        # Save the chain when iOS backgrounds the app (see IosAppLifecycle.h).
+        target_sources(${PROJECT_NAME} PRIVATE src/IosAppLifecycle.mm)
         # Dev-only QA bridge: compiled in only when explicitly asked for, and
         # only on iOS. The sources are additionally self-gated so an accidental
         # -DT3K_DEBUG_BRIDGE=ON on a desktop build still produces nothing.
@@ -316,6 +325,20 @@ if (NOT HEADLESS)
             target_link_libraries(${PROJECT_NAME} PRIVATE X11::X11)
         endif()
         target_sources(${PROJECT_NAME} PRIVATE src/AudioPermissions.cpp)
+    endif()
+endif()
+
+# Factory presets. Desktop installers lay these down in a shared location
+# (see script/create-pkg.sh, the Inno Setup script and the Linux installer);
+# iOS has no installer, so the app bundle carries them itself and
+# PresetManager::defaultSystemFactoryDir points at them there.
+if (T3K_IOS)
+    file(GLOB _t3k_factory_presets "${CMAKE_CURRENT_SOURCE_DIR}/../resources/factory-presets/*.t3kpreset")
+    if (_t3k_factory_presets)
+        target_sources(${PROJECT_NAME}_Standalone PRIVATE ${_t3k_factory_presets})
+        set_source_files_properties(${_t3k_factory_presets} PROPERTIES
+            MACOSX_PACKAGE_LOCATION "Resources/FactoryPresets"
+            HEADER_FILE_ONLY TRUE)
     endif()
 endif()
 

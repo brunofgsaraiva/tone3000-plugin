@@ -10,6 +10,7 @@ import type {
   DragStartEvent,
   Sensors,
 } from '@dnd-kit/dom';
+import { useClearHelpOnScreenChange } from './helpText';
 import { arrayMove } from '@dnd-kit/helpers';
 import { ChainBlock } from './ChainBlock';
 import {
@@ -195,6 +196,9 @@ export const ChainView: React.FC<ChainViewProps> = ({
     if (detailBlockId) sessionStorage.setItem(DETAIL_BLOCK_STORAGE_KEY, detailBlockId);
     else sessionStorage.removeItem(DETAIL_BLOCK_STORAGE_KEY);
   }, [detailBlockId]);
+  // BLOCK <-> SIGNAL CHAIN is a screen change like any other: whatever the
+  // info bar was captioning belongs to the screen being left.
+  useClearHelpOnScreenChange(detailBlockId);
   // Preset load (Plugin) bumps this while we may be unmounted under the tuner
   // or tone browser; skip 0 so a restored detail after OAuth still opens.
   useEffect(() => {

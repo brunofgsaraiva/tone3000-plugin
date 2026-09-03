@@ -9,6 +9,31 @@ import type { Model, Tone, User } from '../types/tone';
 // fresh data once that request resolves, cleared on logout.
 const USER_CACHE_KEY = 't3k.cachedUser';
 
+/**
+ * The signed-up email of whoever last used this machine, for the login
+ * flow's `login_hint`, so a returning user is not asked to retype an address
+ * TONE3000 already knows.
+ *
+ * Read straight from the cache rather than from the `user` state: that state
+ * is null exactly when a login is being started (no live session), while the
+ * cache survives an expired or rejected refresh token. Logout clears it, so a
+ * deliberate sign-out still lands on an empty field.
+ *
+ * Returns undefined whenever there is nothing to offer (no cache, storage
+ * unavailable, or a payload without an email), and the login page then opens
+ * exactly as it did before.
+ */
+function readCachedLoginHint(): string | undefined {
+  try {
+    const cached = localStorage.getItem(USER_CACHE_KEY);
+    if (!cached) return undefined;
+    const email = (JSON.parse(cached) as User).email;
+    return typeof email === 'string' && email.length > 0 ? email : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 interface UseToneSessionOptions {
   /**
    * A fully-resolved tone (with embedded models) landed, from the Select
@@ -29,6 +54,10 @@ interface UseToneSessionOptions {
 export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessionOptions) {
   const setAccessToken = useNativeFunction<boolean>('setAccessToken');
   const clearAuthCookies = useNativeFunction<boolean>('clearAuthCookies');
+  // The address typed on the sign-in page, remembered natively (see
+  // TONE3000Processor::persistLoginEmail). Empty string clears it.
+  const getLoginEmail = useNativeFunction<string>('getLoginEmail');
+  const setLoginEmail = useNativeFunction<boolean>('setLoginEmail');
 
   // Push the latest access token down to native. Called right after the
   // OAuth flows and again whenever T3KClient transparently refreshes.
@@ -68,6 +97,22 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
   // ensureNativeAuth() is the guarantee on top: it validates the token
   // (refreshing when near expiry) and awaits the push, so a native download
   // can never start against a stale Bearer.
+  // Wrap the raw flow so every login carries the hint, and no call site has
+  // to remember to ask for it.
+  // Native's remembered address wins: it is what the user actually typed on
+  // the sign-in page (the iOS user script captures it), while the identity
+  // cache only ever has an email when the API happens to return one.
+  const startLoginFlowWithHint = useCallback(
+    async (options?: { openBrowser?: boolean }) => {
+      const remembered = await getLoginEmail();
+      const loginHint =
+        (typeof remembered === 'string' && remembered.length > 0 ? remembered : undefined) ??
+        readCachedLoginHint();
+      startLoginFlow({ ...options, loginHint });
+    },
+    [getLoginEmail, startLoginFlow]
+  );
+
   const ensureNativeAuth = useCallback(async () => {
     await pushAccessTokenToNative(await client.getAccessToken());
   }, [client, pushAccessTokenToNative]);
@@ -129,8 +174,9 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
       // Non-fatal; the stale cache is only read when a session is present.
     }
     setUser(null);
-    await Promise.all([pushAccessTokenToNative(''), clearAuthCookies()]);
-  }, [clearAuthCookies, client, pushAccessTokenToNative]);
+    // A deliberate sign-out must not leave the next login pre-filled.
+    await Promise.all([pushAccessTokenToNative(''), clearAuthCookies(), setLoginEmail('')]);
+  }, [clearAuthCookies, client, pushAccessTokenToNative, setLoginEmail]);
 
   /**
    * Fetch a tone's full model catalog (tones max out at 300 models, so one
@@ -163,7 +209,7 @@ export function useToneSession({ onToneSelected, onAuthenticated }: UseToneSessi
     client,
     user,
     startSelectFlow,
-    startLoginFlow,
+    startLoginFlow: startLoginFlowWithHint,
     selectToneById,
     retryFlow,
     oauthPhase,

@@ -1050,6 +1050,12 @@ with the interface, so:
   in `TONE3000.log` says what was actually opened, and is worth checking after
   plugging in, since a mismatch there is what usually explains crackle.
 
+With a USB interface the expected setup is the product default, **48 kHz and
+128 samples**, the same first-contact policy as desktop, so the log should say
+`prepareToPlay: sampleRate=48000`. A rate of 16000 or 24000 there is not the
+interface, it is a Bluetooth headset holding the route (see the Bluetooth note
+in `docs/ios.md`); disconnect it and reopen the device.
+
 If the mic permission prompt has never been answered, input is silent with no
 error: the Settings banner covers that case (see AudioPermissions).
 

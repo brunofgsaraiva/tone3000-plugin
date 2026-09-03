@@ -15,6 +15,7 @@ import {
   Circle as LCircle,
   ClipboardPaste as LClipboardPaste,
   Copy as LCopy,
+  CopyPlus as LCopyPlus,
   Download as LDownload,
   Ellipsis as LEllipsis,
   Equal as LEqual,
@@ -23,6 +24,7 @@ import {
   FolderClosed as LFolderClosed,
   Gauge as LGauge,
   GripVertical as LGripVertical,
+  Hand as LHand,
   Info as LInfo,
   Laptop as LLaptop,
   Link as LLink,
@@ -82,6 +84,7 @@ export const ChevronUp = scaled(LChevronUp, 'ChevronUp');
 export const Circle = scaled(LCircle, 'Circle');
 export const ClipboardPaste = scaled(LClipboardPaste, 'ClipboardPaste');
 export const Copy = scaled(LCopy, 'Copy');
+export const CopyPlus = scaled(LCopyPlus, 'CopyPlus');
 export const Download = scaled(LDownload, 'Download');
 export const Ellipsis = scaled(LEllipsis, 'Ellipsis');
 export const Equal = scaled(LEqual, 'Equal');
@@ -90,6 +93,7 @@ export const File = scaled(LFile, 'File');
 export const FolderClosed = scaled(LFolderClosed, 'FolderClosed');
 export const Gauge = scaled(LGauge, 'Gauge');
 export const GripVertical = scaled(LGripVertical, 'GripVertical');
+export const Hand = scaled(LHand, 'Hand');
 export const Info = scaled(LInfo, 'Info');
 export const Laptop = scaled(LLaptop, 'Laptop');
 export const Link = scaled(LLink, 'Link');

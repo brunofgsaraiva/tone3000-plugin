@@ -20,7 +20,7 @@ import { Faceplate, PLATE_HEIGHT } from './Faceplate';
 import { HintBar, HINT_HEIGHT } from './HintBar';
 import { ToastProvider } from './Toast';
 import { PluginHeader } from './PluginHeader';
-import { useHintsEnabled } from './helpText';
+import { useClearHelpOnScreenChange, useHintsEnabled } from './helpText';
 import { AppBanner, useAppBanner, type BannerAction } from './AppBanner';
 import { useChromeChoreography, BANNER_ANIM_MS } from '../hooks/useChromeChoreography';
 import { DbMeter } from './DbMeter';
@@ -30,6 +30,9 @@ import { ConnectionModal } from './ConnectionModal';
 import { ToneBrowser } from './ToneBrowser';
 import { UpdateNotice } from './UpdateNotice';
 import Settings, { type SettingsTab } from './Settings';
+import GestureSheet from './GestureSheet';
+import { shouldAutoOpenGestures } from './gestureGuide';
+import { getGesturesSeen } from './uiPreferences';
 import { T3K_API } from '../t3k/config';
 import type { Model } from '../types/tone';
 import type { ToneBlock } from '../types/chain';
@@ -39,6 +42,14 @@ export const Plugin: React.FC = () => {
   // Which tab Settings opens on; banner / gear land on System (setup first).
   const settingsTabRef = useRef<SettingsTab>('system');
   const [showTuner, setShowTuner] = useState(false);
+  // iPad gesture guide. Opens by itself the first time the UI boots on a
+  // device that has never seen it; after that only the account menu and the
+  // Settings button open it.
+  const [showGestures, setShowGestures] = useState(() =>
+    shouldAutoOpenGestures(IS_IOS, getGesturesSeen())
+  );
+  const openGestures = useCallback(() => setShowGestures(true), []);
+  const closeGestures = useCallback(() => setShowGestures(false), []);
   // In-plugin tone browser takeover (streams of TONE3000 tones). Opened by
   // the + when already authenticated, or right after the no-prompt login
   // flow returns. Seeded true when we're returning from a browse-intent
@@ -279,9 +290,17 @@ export const Plugin: React.FC = () => {
   // screens keeps its visible 44 pt control: the gesture is an extra route,
   // not a replacement, which is both the HIG rule and what keeps the app
   // usable with a mouse or VoiceOver. No-ops off iOS.
+  // A pressed control's help must not ride a navigation into the next
+  // screen (see useClearHelpOnScreenChange). The BLOCK / SIGNAL CHAIN switch
+  // lives in ChainView and clears itself the same way.
+  useClearHelpOnScreenChange(
+    `${showSettings}|${showTuner}|${showToneBrowser}|${showGestures}`
+  );
+
   useEdgeSwipeBack(showToneBrowser, handleBrowserClose);
   useSwipeDownDismiss(showTuner, closeTuner);
   useSwipeDownDismiss(showSettings, () => setShowSettings(false));
+  useSwipeDownDismiss(showGestures, closeGestures);
 
   // Switch a block's model. Native downloads the new model file itself, so
   // refresh-and-sync the token first; switching after the editor has been
@@ -508,6 +527,7 @@ export const Plugin: React.FC = () => {
           user={session.user}
           authenticated={authenticated}
           onOpenSettings={openDefaultSettings}
+          onShowGestures={openGestures}
           onLogin={handleLogin}
           onLogout={handleLogout}
         />
@@ -637,6 +657,7 @@ export const Plugin: React.FC = () => {
           <Settings
             onClose={() => setShowSettings(false)}
             standalone={standalone}
+            onShowGestures={openGestures}
             device={audioDevice}
             initialTab={settingsTabRef.current}
             version={localVersion}
@@ -649,6 +670,10 @@ export const Plugin: React.FC = () => {
             chainRight={chainRight}
           />
         )}
+
+        {/* iPad gesture guide, above Settings (its button opens it) and
+          unmounted while closed, like Settings. Nothing renders off iOS. */}
+        {IS_IOS && showGestures && <GestureSheet onClose={closeGestures} />}
 
         {/* OAuth callback overlay: covers the chain UI while we resolve the
           tokens + tone after returning from tone3000.com, and surfaces any

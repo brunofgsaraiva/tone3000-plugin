@@ -35,7 +35,7 @@ function boolPref(key: string) {
   };
 
   const useValue = () => useSyncExternalStore(subscribe, () => value);
-  return { set, useValue };
+  return { get: () => value, set, useValue };
 }
 
 // Whether NAM block cards expose the (=) per-block normalization toggle.
@@ -60,3 +60,11 @@ export const useBlockSizeControlEnabled = blockSizeControl.useValue;
 const presetPcNumbers = boolPref('t3k.showPresetPcNumbers');
 export const setPresetPcNumbersEnabled = presetPcNumbers.set;
 export const usePresetPcNumbersEnabled = presetPcNumbers.useValue;
+
+// Whether the iPad gestures sheet has already been seen on this device. The
+// one preference that is read before render (Plugin decides at boot whether to
+// auto-open the sheet), hence the plain getter alongside the hook.
+const gesturesSeen = boolPref('t3k.gesturesSeen');
+export const getGesturesSeen = gesturesSeen.get;
+export const setGesturesSeen = gesturesSeen.set;
+export const useGesturesSeen = gesturesSeen.useValue;

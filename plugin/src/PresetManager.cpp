@@ -31,7 +31,16 @@ PresetManager::PresetManager(const juce::File& baseDir, const juce::File& system
 juce::File PresetManager::defaultSystemFactoryDir() {
   // Shared all-users location the installers write to. A missing dir just
   // means no shipped presets; scans treat it as empty.
-#if JUCE_MAC
+#if JUCE_IOS
+  // iOS has no shared install location and no installer: the app is the only
+  // thing that ships, so the same .t3kpreset files ride inside the bundle
+  // (plugin/CMakeLists.txt copies resources/factory-presets into
+  // Resources/FactoryPresets). The bundle is read-only, which is exactly the
+  // contract this directory already has; a user Factory folder still overlays
+  // it in list(), same as every desktop platform.
+  return juce::File::getSpecialLocation(juce::File::currentApplicationFile)
+      .getChildFile("FactoryPresets");
+#elif JUCE_MAC
   return juce::File("/Library/Application Support/TONE3000/Presets/Factory");
 #elif JUCE_WINDOWS
   // ProgramData; matches the Inno Setup {commonappdata} destination.
