@@ -17,6 +17,7 @@ namespace {
 constexpr auto kMultiCoreKey = "multiCore";
 constexpr auto kNamSlimSizeDefaultKey = "namSlimSizeDefault";
 constexpr auto kWebInspectorKey = "webInspector";
+constexpr auto kLoginEmailKey = "t3kLoginEmail";
 
 // Magic prefix for the binary ValueTree state format (see getStateInformation).
 constexpr char kStateMagic[] = {'T', '3', 'K', 'B'};
@@ -85,6 +86,22 @@ void TONE3000Processor::persistWebInspectorEnabled(bool enabled) {
   settings.saveIfNeeded();
   juce::Logger::writeToLog(juce::String("[Processor] Web Inspector ") +
                            (enabled ? "enabled" : "disabled"));
+}
+
+juce::String TONE3000Processor::readPersistedLoginEmail() {
+  return juce::PropertiesFile(userSettingsOptions()).getValue(kLoginEmailKey, juce::String());
+}
+
+void TONE3000Processor::persistLoginEmail(const juce::String& email) {
+  juce::PropertiesFile settings(userSettingsOptions());
+  if (email.isEmpty())
+    settings.removeValue(kLoginEmailKey);
+  else
+    settings.setValue(kLoginEmailKey, email);
+  settings.saveIfNeeded();
+  // Never log the address itself.
+  juce::Logger::writeToLog(juce::String("[Processor] Login email hint ") +
+                           (email.isEmpty() ? "cleared" : "stored"));
 }
 
 void TONE3000Processor::setMultiCoreEnabled(bool enabled, bool persist) {
