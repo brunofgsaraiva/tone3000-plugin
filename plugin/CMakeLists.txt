@@ -186,7 +186,11 @@ endif()
 # LSMinimumSystemVersion is a macOS Launch Services key; on iOS the deployment
 # target already rides in the binary and MinimumOSVersion, so merging a macOS
 # key there would just be noise in the plist.
-if (T3K_IOS)
+if (T3K_IOS AND T3K_DEBUG_BRIDGE)
+    # The QA build sits next to the real app on the same device: give it a
+    # distinct home-screen name so the two are never confused.
+    set(_t3k_plist_to_merge PLIST_TO_MERGE "<plist version=\"1.0\"><dict><key>CFBundleDisplayName</key><string>T3K QA</string></dict></plist>")
+elseif (T3K_IOS)
     set(_t3k_plist_to_merge "")
 else()
     set(_t3k_plist_to_merge PLIST_TO_MERGE "<plist version=\"1.0\"><dict><key>LSMinimumSystemVersion</key><string>${CMAKE_OSX_DEPLOYMENT_TARGET}</string></dict></plist>")
