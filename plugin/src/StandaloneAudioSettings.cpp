@@ -118,8 +118,10 @@ StandaloneAudioSettings::StandaloneAudioSettings(TONE3000Processor& p,
   if (auto* dm = deviceManager())
     dm->addChangeListener(this);
   // iOS: drop the Bluetooth headset mic route JUCE asks for (see
-  // IosAudioRoute.h). No-op off iOS.
+  // IosAudioRoute.h). No-op off iOS. Category first, then mode: Apple
+  // recommends setting them together, and setCategory clears the mode.
   IosAudioRoute::disallowBluetoothHfp();
+  applyRawInputMode();
   ensureInitialPolicies();
 }
 
@@ -137,11 +139,12 @@ void StandaloneAudioSettings::changeListenerCallback(juce::ChangeBroadcaster*) {
   // Fires for every device-manager change: our own setters, hot-plugs,
   // devices vanishing mid-session, vendor control panel edits. Re-run the
   // sync policies, then push the UI to re-pull state.
+  // Category before mode: JUCE sets the category when it opens a device,
+  // which clears the mode, so both are re-applied here in that order.
+  IosAudioRoute::disallowBluetoothHfp();
+  applyRawInputMode();
   ensureInitialPolicies();
   applyMonitoringPolicy();
-  // Re-applied here because JUCE sets the category when it opens a device;
-  // its own route-change restart path does not, so this is the reopen hook.
-  IosAudioRoute::disallowBluetoothHfp();
   if (onDeviceStateChanged)
     onDeviceStateChanged();
 }
@@ -810,6 +813,32 @@ void StandaloneAudioSettings::rememberCurrentSetup() {
   if (auto* obj = remembered.getDynamicObject())
     obj->setProperty(currentSetupKey(), entryVar);
   p->setValue(kRememberedSetupsKey, juce::JSON::toString(remembered, true));
+}
+
+void StandaloneAudioSettings::applyRawInputMode() {
+#if JUCE_IOS
+  auto* dm = deviceManager();
+  auto* device = dm != nullptr ? dm->getCurrentAudioDevice() : nullptr;
+  if (device == nullptr)
+    return;
+
+  // JUCE opens the session with setCategory: and no mode, so it stays in
+  // AVAudioSessionModeDefault - the voice chain. Its AGC levels the guitar
+  // before the model ever sees it (pick attack and the guitar's volume knob
+  // stop coming through), and the processing inflates
+  // AVAudioSession.inputLatency, the figure the settings UI reports.
+  // setAudioPreprocessingEnabled(false) is Measurement mode, the raw path.
+  //
+  // The mode belongs to the session and setCategory: clears it, which JUCE
+  // does again on every device open and route change - hence re-applying it
+  // here rather than once at startup. On a USB route restart the first
+  // setMode: can be dropped while the route is still settling, so a refusal
+  // is retried once.
+  if (!device->setAudioPreprocessingEnabled(false) &&
+      !device->setAudioPreprocessingEnabled(false))
+    juce::Logger::writeToLog(
+        "[Audio] iOS Measurement mode refused; the input stays pre-processed");
+#endif
 }
 
 void StandaloneAudioSettings::applyMonitoringPolicy() {
