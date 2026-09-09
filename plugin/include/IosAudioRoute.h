@@ -41,6 +41,7 @@ bool isBluetoothRoute();
     never on the route-change restart path, so re-applying is how the override
     survives a reopen. */
 void configureSession();
+juce::String describeSession();
 
 #else
 
@@ -48,6 +49,7 @@ inline bool isBluetoothRoute() {
   return false;
 }
 inline void configureSession() {}
+inline juce::String describeSession() { return {}; }
 
 #endif
 

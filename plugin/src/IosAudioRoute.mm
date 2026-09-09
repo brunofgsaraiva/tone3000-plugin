@@ -66,6 +66,25 @@ void configureSession() {
                         : juce::String ("no error object")));
 }
 
+juce::String describeSession() {
+  AVAudioSession* session = [AVAudioSession sharedInstance];
+  juce::String out;
+  out << "category=" << juce::String::fromUTF8 ([session.category UTF8String])
+      << " options=0x" << juce::String::toHexString ((int) session.categoryOptions)
+      << " mode=" << juce::String::fromUTF8 ([session.mode UTF8String])
+      << " sessionRate=" << juce::String (session.sampleRate, 0)
+      << " ioBuffer=" << juce::String (session.IOBufferDuration * session.sampleRate, 0)
+      << " inLatencyMs=" << juce::String (session.inputLatency * 1000.0, 2)
+      << " outLatencyMs=" << juce::String (session.outputLatency * 1000.0, 2);
+  for (AVAudioSessionPortDescription* port in session.currentRoute.inputs)
+    out << " in=" << juce::String::fromUTF8 ([port.portType UTF8String]) << "/"
+        << juce::String::fromUTF8 ([port.portName UTF8String]);
+  for (AVAudioSessionPortDescription* port in session.currentRoute.outputs)
+    out << " out=" << juce::String::fromUTF8 ([port.portType UTF8String]) << "/"
+        << juce::String::fromUTF8 ([port.portName UTF8String]);
+  return out;
+}
+
 }  // namespace IosAudioRoute
 
 #endif

@@ -109,6 +109,26 @@ const char* micStatusString(AudioPermissions::MicStatus status) {
 }  // namespace
 
 //==============================================================================
+// Local instrument (device evidence, not for upstream)
+
+void StandaloneAudioSettings::logSessionState(const char* where) {
+#if JUCE_IOS
+  auto* dm = deviceManager();
+  auto* device = dm != nullptr ? dm->getCurrentAudioDevice() : nullptr;
+  juce::String line;
+  line << "[audio-session " << where << "] " << IosAudioRoute::describeSession();
+  if (device != nullptr)
+    line << " deviceRate=" << juce::String (device->getCurrentSampleRate(), 0)
+         << " deviceBuffer=" << device->getCurrentBufferSizeSamples();
+  else
+    line << " device=none";
+  juce::Logger::writeToLog (line);
+#else
+  juce::ignoreUnused (where);
+#endif
+}
+
+//==============================================================================
 // Lifetime
 
 StandaloneAudioSettings::StandaloneAudioSettings(TONE3000Processor& p,
@@ -119,7 +139,9 @@ StandaloneAudioSettings::StandaloneAudioSettings(TONE3000Processor& p,
     dm->addChangeListener(this);
   // iOS: Measurement mode, and no Bluetooth headset mic route (see
   // IosAudioRoute.h). No-op off iOS.
+  logSessionState("ctor before");
   applyRawInputMode();
+  logSessionState("ctor after");
   ensureInitialPolicies();
 }
 
@@ -137,7 +159,9 @@ void StandaloneAudioSettings::changeListenerCallback(juce::ChangeBroadcaster*) {
   // Fires for every device-manager change: our own setters, hot-plugs,
   // devices vanishing mid-session, vendor control panel edits. Re-run the
   // sync policies, then push the UI to re-pull state.
+  logSessionState("change before");
   applyRawInputMode();
+  logSessionState("change after");
   ensureInitialPolicies();
   applyMonitoringPolicy();
   if (onDeviceStateChanged)

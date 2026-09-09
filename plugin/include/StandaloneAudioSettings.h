@@ -140,6 +140,7 @@ private:
   /** iOS: hold the audio session in Measurement mode, without the Bluetooth
       HFP route (see the .cpp). Does nothing on any other platform. */
   void applyRawInputMode();
+  void logSessionState(const char* where);
 
   /** Follow the feedback-risk heuristic unless the user has overridden. */
   void applyMonitoringPolicy();
