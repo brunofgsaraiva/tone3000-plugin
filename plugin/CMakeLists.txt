@@ -186,6 +186,7 @@ if (T3K_IOS)
         FILE_SHARING_ENABLED TRUE
         DOCUMENT_BROWSER_ENABLED TRUE
         IPAD_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
+        IPHONE_SCREEN_ORIENTATIONS UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight
         REQUIRES_FULL_SCREEN TRUE
     )
 endif()
