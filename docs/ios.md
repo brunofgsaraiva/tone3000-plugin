@@ -4,7 +4,8 @@ Standalone-only iPad port of the plugin: the same C++ and the same React UI,
 with every difference behind `#if JUCE_IOS` (C++),
 `window.__T3K_PLATFORM__ === 'ios'` / `pointerType === 'touch'` (UI) or the
 `html.t3k-ios` class (CSS). Desktop behaviour is unchanged. AUv3 is out of
-scope; iPhone is untested.
+scope. The same build also runs on an iPhone, which shortens the fixed chrome
+strips behind one more gate (see iPhone).
 
 Deployment target iOS 16. Landscape only.
 
@@ -194,6 +195,47 @@ TONE3000 session and this Simulator run was signed out.
 | Block swap / remove | swap opens SELECT TONE for that block; remove takes it out |
 | Block info / share | **not tested**: both controls exist only for a catalogue tone |
 
+## iPhone
+
+The same build, landscape only like the iPad (`IPHONE_SCREEN_ORIENTATIONS` in
+`plugin/CMakeLists.txt`). The screen is the one thing that is genuinely
+different. An iPhone 17 Pro in landscape gives the WebView 750 x 381 pt: the
+system has already inset the 62 pt Dynamic Island margins and the home
+indicator, so the page is inside the safe area before it starts and
+`env(safe-area-inset-*)` has nothing left to avoid. The UI fits the 1024
+design box to the width, so one design px is 0.73 pt and the box has about 521
+design px of height against the 578 the layout is drawn for. The chain lane is
+the flex middle, so without help it is the only strip that pays: the tiles
+overflowed it and half covered the SIGNAL CHAIN label.
+
+`IS_PHONE` (`ui/src/hooks/useUiScale.ts`: on iOS with `screen`'s shorter side
+under 500, the pure rule being `isPhoneScreen` in `ui/src/platform.ts`) gives
+that height back from the fixed strips. It also puts `t3k-phone` on `<html>`
+beside `t3k-ios`, the hook for any phone-only CSS rule. All design px:
+
+| strip | design | phone |
+| ----- | ------ | ----- |
+| header (`PluginHeader`) | 64 | 48 |
+| faceplate (`PLATE_HEIGHT`) | 108 | 72 |
+| faceplate knobs, primary / secondary | 48 / 36 | 36 / 28 |
+| hint bar (`HINT_HEIGHT`) | 36 | 26 |
+| chain lane pad, top and bottom (`Plugin`) | 24 | 8 |
+
+Each is read through an accessor (`plateHeight()`, `hintHeight()`,
+`headerHeight()`, `plateKnobPrimary()`), never by changing the constant, so
+the exported constants still describe the design and every non-phone build,
+iPad included, is byte-identical to before. The header scales its own content
+with it: smaller wordmark, narrower preset pill, and the three pills step down
+one notch. Same controls, same order.
+
+Measured on the iPhone 17 Pro Simulator, before to after: header 46.7 to 35.0
+pt, chain lane 229.7 to 275.3 pt, faceplate 80.0 to 53.3 pt, hint bar 25.7 to
+19.0 pt, tile 164 to 182 pt, and the section label clear of the tiles by 26 pt
+instead of overlapping them. The tile is now at its width cap, not its height
+cap: three across the 1024 design box leaves 249 design px each, so further
+height buys no tile size. Stereo fits as well (two lanes of 160 plus the 24
+gap need 344 design px, the lane has 360; it had 265).
+
 ## Platform notes worth knowing
 
 - **Picker results must be read through security-scoped URLs.** A file chosen
@@ -301,6 +343,8 @@ TONE3000 session and this Simulator run was signed out.
   `UIImpactFeedbackGenerator` does nothing there and the tile lift and drop
   are silent.
 - AUv3 is not built. Only the Standalone app exists on iOS.
+- The local-import section of Select Tone still reads **On this iPad** on an
+  iPhone: the copy is not platform aware yet.
 
 ## Desktop CI evidence
 
