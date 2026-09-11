@@ -10,13 +10,13 @@ import { useConnectionGate } from '../hooks/useConnectionGate';
 import { useToneSession } from '../hooks/useToneSession';
 import { useToneLoadFlow } from '../hooks/useToneLoadFlow';
 import { useUpdateNotice } from '../hooks/useUpdateNotice';
-import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT, IS_IOS } from '../hooks/useUiScale';
+import { useUiScale, DESIGN_WIDTH, DESIGN_HEIGHT, IS_IOS, IS_PHONE } from '../hooks/useUiScale';
 import { useEdgeSwipeBack, useSwipeDownDismiss } from '../hooks/useTouchGestures';
 import { shouldRestoreToneBrowser } from '../hooks/useT3kSelect';
 import { consumePendingToneTarget, peekPendingToneTarget } from '../hooks/useToneLoadFlow';
 import { ChainView, DETAIL_BLOCK_STORAGE_KEY } from './ChainView';
-import { Faceplate, PLATE_HEIGHT } from './Faceplate';
-import { HintBar, HINT_HEIGHT } from './HintBar';
+import { Faceplate, plateHeight } from './Faceplate';
+import { HintBar, hintHeight } from './HintBar';
 import { ToastProvider } from './Toast';
 import { PluginHeader } from './PluginHeader';
 import { useHintsEnabled } from './helpText';
@@ -32,6 +32,9 @@ import Settings, { type SettingsTab } from './Settings';
 import { T3K_API } from '../t3k/config';
 import type { Model } from '../types/tone';
 import type { ToneBlock } from '../types/chain';
+
+/** Design-space pad between the chain band and the strips above and below it. */
+const LANE_PAD = IS_PHONE ? 8 : 24;
 
 export const Plugin: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
@@ -466,7 +469,7 @@ export const Plugin: React.FC = () => {
     >
       {/* One app-wide toast pill, floating above the faceplate. Everything
           that raises toasts (preset save, share, auto measure) is inside. */}
-      <ToastProvider bottom={PLATE_HEIGHT + (hintsVisible ? HINT_HEIGHT : 0) + 24}>
+      <ToastProvider bottom={plateHeight() + (hintsVisible ? hintHeight() : 0) + 24}>
         {chrome.renderedBanner && (
           // Slide slot: the banner is anchored to the slot's bottom edge, so
           // opening/closing the slot slides it down/up from behind the top
@@ -561,9 +564,12 @@ export const Plugin: React.FC = () => {
                 // Shared 24px under the header; 24px above the faceplate only
                 // for chain/BLOCK. Select fills to the faceplate; block-info
                 // fills to both header and faceplate, putting those pads
-                // inside the scroll content instead.
-                paddingTop: fillToFaceplate ? 0 : 24,
-                paddingBottom: showToneBrowser || fillToFaceplate ? 0 : 24,
+                // inside the scroll content instead. A phone spends 8 instead
+                // of 24 on each: this band is the flex middle, so every design
+                // px the fixed strips give back lands in the chain lane (see
+                // useUiScale / IS_PHONE).
+                paddingTop: fillToFaceplate ? 0 : LANE_PAD,
+                paddingBottom: showToneBrowser || fillToFaceplate ? 0 : LANE_PAD,
               }}
             >
               {showToneBrowser ? (

@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { rem } from '../hooks/useUiScale';
+import { IS_PHONE, rem } from '../hooks/useUiScale';
 import { ChevronDown, Equal, Power } from './icons';
 import { KnobControl } from './KnobControl';
 import { balanceDbScale, gainDbScale, gateDbScale, toneScale } from './knobScale';
@@ -17,13 +17,13 @@ import {
   ICON_BOX_SIZE,
   ICON_BOX_RADIUS,
   ICON_SIZE,
-  KNOB_SIZE_PRIMARY,
   FONT_MONO,
-  KNOB_SIZE_SECONDARY,
   MUTED,
   SUBTLE,
   WHITE,
   faceplateChromeLift,
+  plateKnobPrimary,
+  plateKnobSecondary,
   uiOffClass,
 } from './theme';
 
@@ -55,8 +55,22 @@ import {
  */
 
 export const PLATE_HEIGHT = 108;
+/** Phone plate. The design box is 578 px tall and a phone's landscape
+    viewport is nowhere near that, so the fixed strips give height back to the
+    chain lane, which is the flex middle and otherwise the only strip that
+    pays (see useUiScale / IS_PHONE). 36 design px come off the plate here and
+    its knobs step down one size with it; the controls and their order are
+    the plate's, unchanged. */
+const PLATE_HEIGHT_PHONE = 72;
+
+/** Live plate height in design px. PLATE_HEIGHT stays the design constant
+    for every non-phone code path (Plugin's toast offset reads this). */
+export const plateHeight = (): number => (IS_PHONE ? PLATE_HEIGHT_PHONE : PLATE_HEIGHT);
+
+const KNOB_PRIMARY = plateKnobPrimary();
+const KNOB_SECONDARY = plateKnobSecondary();
 /** Shared faceplate action-button height: center of the secondary knobs. */
-const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
+const CHROME_LIFT = faceplateChromeLift(KNOB_SECONDARY);
 
 const PowerButton: React.FC<{
   on: boolean;
@@ -295,7 +309,7 @@ const OutputGainKnob: React.FC<{
           label="Bal"
           value={balance}
           onChange={setBalance}
-          size={KNOB_SIZE_SECONDARY}
+          size={KNOB_SECONDARY}
           variant="bipolar"
           thumb="secondary"
           scale={balanceDbScale}
@@ -308,7 +322,7 @@ const OutputGainKnob: React.FC<{
         label="Output"
         value={level}
         onChange={setLevel}
-        size={KNOB_SIZE_PRIMARY}
+        size={KNOB_PRIMARY}
         scale={gainDbScale}
         defaultValue={0.5}
         help={HELP.outputLevel}
@@ -368,7 +382,7 @@ export const Faceplate = React.memo(function Faceplate({
     <div
       style={{
         width: '100%',
-        height: `${PLATE_HEIGHT}rem`,
+        height: `${plateHeight()}rem`,
         display: 'flex',
         // Five peers (Input, Gate, Tone, Spread/Align, Output) share the
         // plate width. flex-end keeps the secondary Gate on the same label
@@ -378,7 +392,10 @@ export const Faceplate = React.memo(function Faceplate({
         flexShrink: 0,
         borderTop: BORDER,
         background: '#1C1C1E',
-        padding: '16rem 30rem', // align input/output with UV meters
+        // Align input/output with the UV meters. The phone trims the vertical
+        // pad to what the shorter plate can spare: knob + label gap + label
+        // slot is 61 design px of the 72.
+        padding: IS_PHONE ? '5rem 30rem' : '16rem 30rem',
         boxSizing: 'border-box',
       }}
     >
@@ -387,7 +404,7 @@ export const Faceplate = React.memo(function Faceplate({
           label="Input"
           value={inputLevel}
           onChange={setInputLevel}
-          size={KNOB_SIZE_PRIMARY}
+          size={KNOB_PRIMARY}
           scale={gainDbScale}
           defaultValue={0.5}
           help={HELP.inputLevel}
@@ -414,7 +431,7 @@ export const Faceplate = React.memo(function Faceplate({
             label="Gate"
             value={noiseGate}
             onChange={setNoiseGate}
-            size={KNOB_SIZE_SECONDARY}
+            size={KNOB_SECONDARY}
             thumb="secondary"
             scale={gateDbScale}
             defaultValue={gateDbScale.fromDisplay(-80)}
@@ -450,7 +467,7 @@ export const Faceplate = React.memo(function Faceplate({
             label="Bass"
             value={toneBass}
             onChange={setToneBass}
-            size={KNOB_SIZE_PRIMARY}
+            size={KNOB_PRIMARY}
             scale={toneScale}
             defaultValue={toneScale.fromDisplay(5)}
             help={HELP.toneBass}
@@ -460,7 +477,7 @@ export const Faceplate = React.memo(function Faceplate({
             label="Middle"
             value={toneMid}
             onChange={setToneMid}
-            size={KNOB_SIZE_PRIMARY}
+            size={KNOB_PRIMARY}
             scale={toneScale}
             defaultValue={toneScale.fromDisplay(5)}
             help={HELP.toneMiddle}
@@ -470,7 +487,7 @@ export const Faceplate = React.memo(function Faceplate({
             label="Treble"
             value={toneTreble}
             onChange={setToneTreble}
-            size={KNOB_SIZE_PRIMARY}
+            size={KNOB_PRIMARY}
             scale={toneScale}
             defaultValue={toneScale.fromDisplay(5)}
             help={HELP.toneTreble}

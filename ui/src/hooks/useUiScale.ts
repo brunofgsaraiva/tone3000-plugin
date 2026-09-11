@@ -1,4 +1,5 @@
 import { useLayoutEffect } from 'react';
+import { isPhoneScreen } from '../platform';
 
 /** Design-space width of the plugin UI. Native sizes the window to this
  * times the user's scale factor (see TONE3000Editor in plugin/include). */
@@ -28,11 +29,27 @@ let pendingTimer: number | undefined;
 export const IS_IOS =
   (window as unknown as { __T3K_PLATFORM__?: string }).__T3K_PLATFORM__ === 'ios';
 
-// Stylesheet hook for the iOS-only rules in index.css (the 44 pt touch floor
-// and the safe-area padding). Set here rather than in a component so it is on
-// the element before the first paint, and set only on iOS, so every other
-// build's <html> carries no extra class.
-if (IS_IOS && typeof document !== 'undefined') document.documentElement.classList.add('t3k-ios');
+/**
+ * True on an iOS phone, false on every iPad and on every other platform.
+ *
+ * A phone in landscape has roughly half an iPad's height for the same fitted
+ * width, which the 578px design box cannot absorb: the chain lane is the flex
+ * middle, so it is the strip that pays, and it ends up smaller than the tiles
+ * it holds. The phone therefore runs a shorter set of fixed strips (header,
+ * faceplate, hint bar, lane padding), each of them behind this flag, and
+ * everything else, iPad included, keeps the design values exactly.
+ */
+export const IS_PHONE = IS_IOS && isPhoneScreen(screen.width, screen.height);
+
+// Stylesheet hooks for the iOS-only rules in index.css (the 44 pt touch floor
+// and the safe-area padding), plus `t3k-phone` for any phone-only rule. Set
+// here rather than in a component so they are on the element before the first
+// paint, and set only on iOS, so every other build's <html> carries no extra
+// class.
+if (IS_IOS && typeof document !== 'undefined') {
+  document.documentElement.classList.add('t3k-ios');
+  if (IS_PHONE) document.documentElement.classList.add('t3k-phone');
+}
 
 /** Largest scale at which a 1024 x designHeight box fits the viewport. The
  * floor covers 0-sized viewports during boot/teardown: pointer math divides

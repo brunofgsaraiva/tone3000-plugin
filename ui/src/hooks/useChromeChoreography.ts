@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { DESIGN_HEIGHT, getUiScale, setUiDesignHeight } from './useUiScale';
 import { BANNER_HEIGHT, type AppBannerSpec } from '../components/AppBanner';
-import { HINT_HEIGHT } from '../components/HintBar';
+import { hintHeight } from '../components/HintBar';
 
 /** Duration of the banner slide (wrapper + root height animate in lockstep). */
 export const BANNER_ANIM_MS = 180;
@@ -63,7 +63,7 @@ export function useChromeChoreography(
     if (banner) lastBannerRef.current = banner;
   });
 
-  const hintExtra = hintsVisible ? HINT_HEIGHT : 0;
+  const hintExtra = hintsVisible ? hintHeight() : 0;
   // The window keeps the banner's space through the whole exit slide; it only
   // shrinks back once the strip is gone ('hidden').
   const windowExtra = (phase !== 'hidden' ? BANNER_HEIGHT : 0) + hintExtra;

@@ -2,10 +2,19 @@ import React from 'react';
 import { X } from './icons';
 import { HELP, helpProps, setHintsEnabled, useHelpText, useHintsEnabled } from './helpText';
 import { useCpuPercent } from '../hooks/useMeters';
+import { IS_PHONE } from '../hooks/useUiScale';
 import { BORDER, MUTED, WHITE } from './theme';
 
 /** Chrome height added below the plugin when hints are enabled (see Plugin). */
 export const HINT_HEIGHT = 36;
+/** Phone strip: 10 design px go back to the chain lane (see useUiScale /
+    IS_PHONE). The row still holds a 13px hint line, the CPU readout and the
+    close button; only the slack around them is gone. */
+const HINT_HEIGHT_PHONE = 26;
+
+/** Live hint-strip height in design px. HINT_HEIGHT stays the design
+    constant for every non-phone code path. */
+export const hintHeight = (): number => (IS_PHONE ? HINT_HEIGHT_PHONE : HINT_HEIGHT);
 
 /** Audio-callback load. Tabular numerals + a fixed-width value slot so the
     row doesn't shimmy as digits change. */
@@ -54,7 +63,7 @@ export const HintBar: React.FC = () => {
     <div
       style={{
         width: '100%',
-        height: `${HINT_HEIGHT}rem`,
+        height: `${hintHeight()}rem`,
         display: 'flex',
         alignItems: 'center',
         gap: '16rem',

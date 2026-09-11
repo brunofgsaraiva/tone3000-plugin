@@ -19,7 +19,7 @@ import { arrayMove } from '@dnd-kit/helpers';
 import type { DragEndEvent } from '@dnd-kit/react';
 import type { ActivePreset, PresetInfo } from '../types/chain';
 import { useDismissable } from '../hooks/useDismissable';
-import { IS_IOS } from '../hooks/useUiScale';
+import { IS_IOS, IS_PHONE, rem } from '../hooks/useUiScale';
 import { useToast } from './Toast';
 import { HELP, helpProps } from './helpText';
 import { BORDER, FONT_MONO, GRAY, SEGMENTED_TRACK } from './theme';
@@ -40,6 +40,12 @@ import { setPresetPcNumbersEnabled, usePresetPcNumbersEnabled } from './uiPrefer
 
 const MUTED = GRAY;
 const PANEL_BG = '#141416';
+
+/** The ‹ name › pill. The phone's header is 48 design px instead of 64, so
+    the pill sits down one step and the name slot narrows with it; long names
+    ellipsize there exactly as they already do. */
+const PILL_HEIGHT = IS_PHONE ? 32 : 36;
+const PILL_NAME_WIDTH = IS_PHONE ? 104 : 150;
 
 const panelStyle: React.CSSProperties = {
   position: 'absolute',
@@ -443,7 +449,7 @@ export const PresetBar: React.FC<PresetBarProps> = ({
         style={{
           display: 'flex',
           alignItems: 'stretch',
-          height: '36rem',
+          height: rem(PILL_HEIGHT),
           borderRadius: '8rem',
           // Same fill as the model select bar (SEGMENTED_TRACK).
           backgroundColor: SEGMENTED_TRACK,
@@ -466,14 +472,14 @@ export const PresetBar: React.FC<PresetBarProps> = ({
             cursor: 'pointer',
             // Constant width so the pill never resizes with the name; long
             // names ellipsize. Full pill height is the click target.
-            width: '150rem',
+            width: rem(PILL_NAME_WIDTH),
             height: '100%',
             // iOS: the chevrons' 44 pt hit areas are wider than the chevrons
             // and reach a few points into this button. Raising the name above
             // them keeps the whole name tappable and leaves the chevrons the
             // room *outside* the pill, where nothing else competes.
             ...(IS_IOS ? { position: 'relative' as const, zIndex: 1 } : {}),
-            lineHeight: '36rem',
+            lineHeight: rem(PILL_HEIGHT),
             textAlign: 'center',
             overflow: 'hidden',
             textOverflow: 'ellipsis',

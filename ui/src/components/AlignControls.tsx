@@ -12,9 +12,9 @@ import { ChromeIconButton } from './ChromeIconButton';
 import { ImageDeckPanel, useImageDeckReset } from './ImageDeckPanel';
 import {
   ICON_SIZE,
-  KNOB_SIZE_PRIMARY,
-  KNOB_SIZE_SECONDARY,
   KNOB_LABEL_GAP,
+  plateKnobPrimary,
+  plateKnobSecondary,
   faceplateChromeLift,
   pillButtonStyle,
 } from './theme';
@@ -47,10 +47,10 @@ import { IMAGE_GROUP_WIDTH } from './SpreadControls';
  * (IMAGE_GROUP_WIDTH).
  */
 
-const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
+const CHROME_LIFT = faceplateChromeLift(plateKnobSecondary());
 
-const SECONDARY_CENTER_Y = KNOB_LABEL_GAP + 14 + KNOB_SIZE_SECONDARY / 2;
-const ADVERT_HEIGHT = KNOB_SIZE_PRIMARY;
+const SECONDARY_CENTER_Y = KNOB_LABEL_GAP + 14 + plateKnobSecondary() / 2;
+const ADVERT_HEIGHT = plateKnobPrimary();
 
 /** Same elongated outline triangle as Spread, but the advert flips the
     directions so the arrows point inward (→ ALIGN ←) instead of out. */
@@ -197,7 +197,7 @@ export const AlignGroup: React.FC = () => {
               value={offset}
               onChange={setOffset}
               variant="bipolar"
-              size={KNOB_SIZE_PRIMARY}
+              size={plateKnobPrimary()}
               scale={offsetMsScale}
               defaultValue={0.5}
               onReset={resetDeck}

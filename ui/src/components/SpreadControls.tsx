@@ -12,9 +12,9 @@ import { ImageDeckPanel, useImageDeckReset } from './ImageDeckPanel';
 import {
   ICON_BOX_SIZE,
   ICON_SIZE,
-  KNOB_SIZE_PRIMARY,
-  KNOB_SIZE_SECONDARY,
   KNOB_LABEL_GAP,
+  plateKnobPrimary,
+  plateKnobSecondary,
   faceplateChromeLift,
   pillButtonStyle,
 } from './theme';
@@ -40,7 +40,7 @@ import {
 /** Default +15 ms R on the bipolar ±24 ms offset (matches the APVTS default). */
 const SPREAD_OFFSET_DEFAULT = 0.8125;
 
-const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
+const CHROME_LIFT = faceplateChromeLift(plateKnobSecondary());
 
 /** Fixed slot width shared by the advert pill, the expanded knob + power
     row, and the stereo-mode Align group: every state of the stereo-image
@@ -49,9 +49,9 @@ const CHROME_LIFT = faceplateChromeLift(KNOB_SIZE_SECONDARY);
 export const IMAGE_GROUP_WIDTH = 148;
 /** Secondary-knob centerline above the plate baseline (label + gap + radius);
     vertically centers the advert on the same line as the plate's buttons. */
-const SECONDARY_CENTER_Y = KNOB_LABEL_GAP + 14 + KNOB_SIZE_SECONDARY / 2;
+const SECONDARY_CENTER_Y = KNOB_LABEL_GAP + 14 + plateKnobSecondary() / 2;
 /** The advert stands as tall as the plate's primary knobs. */
-const ADVERT_HEIGHT = KNOB_SIZE_PRIMARY;
+const ADVERT_HEIGHT = plateKnobPrimary();
 
 /** Elongated outline triangle flanking "SPREAD": ~3.5:1 length:height,
     hollow stroke matching the advert pill border. Points right; flip for left.
@@ -154,7 +154,7 @@ export const SpreadGroup: React.FC = () => {
               value={offset}
               onChange={setOffset}
               variant="bipolar"
-              size={KNOB_SIZE_PRIMARY}
+              size={plateKnobPrimary()}
               scale={offsetMsScale}
               defaultValue={SPREAD_OFFSET_DEFAULT}
               onReset={resetDeck}

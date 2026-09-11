@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { rem } from '../hooks/useUiScale';
+import { IS_PHONE, rem } from '../hooks/useUiScale';
 import { LogIn, LogOut, Settings as SettingsIcon } from './icons';
 import type { User } from '../types/tone';
 import { AvatarImage } from './AvatarFallback';
@@ -71,7 +71,9 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
           display: 'flex',
           alignItems: 'center',
           gap: '10rem',
-          height: '40rem',
+          // Tallest item in the bar, so it steps down with the phone's
+          // shorter header (48 design px instead of 64).
+          height: IS_PHONE ? '34rem' : '40rem',
           padding: '0 5rem 0 12rem',
           boxSizing: 'border-box',
           backgroundColor: 'transparent',

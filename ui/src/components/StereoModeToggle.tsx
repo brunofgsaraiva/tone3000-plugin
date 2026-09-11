@@ -1,5 +1,5 @@
 import React from 'react';
-import { rem } from '../hooks/useUiScale';
+import { IS_PHONE, rem } from '../hooks/useUiScale';
 import { Circle } from './icons';
 import { HELP, helpProps } from './helpText';
 import { GRAY, HIGHLIGHT, SURFACE_RAISED } from './theme';
@@ -37,6 +37,11 @@ const StereoCirclesIcon: React.FC<{ size?: number }> = ({ size = 12 }) => {
     button is highlight-width so its icon centers under the highlight; a 4px
     container gutter keeps the whole thing 80px wide (4 + 36 + 36 + 4). */
 const SELECTOR_WIDTH = 80;
+/** Overall height, and the height of the highlight inside it. The phone's
+    header is 48 design px instead of 64, so the selector steps down with the
+    preset pill beside it; the 4px inset is kept on both. */
+const SELECTOR_HEIGHT = IS_PHONE ? 32 : 36;
+const HIGHLIGHT_HEIGHT = SELECTOR_HEIGHT - 8;
 const OUTER_INSET = 4;
 const HIGHLIGHT_WIDTH = 36;
 const SEGMENT_WIDTH = HIGHLIGHT_WIDTH; // 36: button matches highlight so the icon aligns
@@ -53,7 +58,7 @@ export const StereoModeToggle: React.FC<{
     alignItems: 'center',
     justifyContent: 'center',
     width: `${SEGMENT_WIDTH}rem`,
-    height: '36rem',
+    height: `${SELECTOR_HEIGHT}rem`,
     border: 'none',
     background: 'transparent',
     cursor: 'pointer',
@@ -69,10 +74,10 @@ export const StereoModeToggle: React.FC<{
         flexDirection: 'row',
         alignItems: 'center',
         width: `${SELECTOR_WIDTH}rem`,
-        height: '36rem',
+        height: `${SELECTOR_HEIGHT}rem`,
         padding: `0 ${OUTER_INSET}rem`,
         boxSizing: 'border-box',
-        borderRadius: '18rem',
+        borderRadius: `${SELECTOR_HEIGHT / 2}rem`,
         backgroundColor: SURFACE_RAISED,
         flexShrink: 0,
       }}
@@ -85,8 +90,8 @@ export const StereoModeToggle: React.FC<{
           top: '4rem',
           left: `${OUTER_INSET}rem`,
           width: `${HIGHLIGHT_WIDTH}rem`,
-          height: '28rem',
-          borderRadius: '14rem',
+          height: `${HIGHLIGHT_HEIGHT}rem`,
+          borderRadius: `${HIGHLIGHT_HEIGHT / 2}rem`,
           backgroundColor: HIGHLIGHT,
           transform: stereoEnabled ? `translateX(${HIGHLIGHT_TRAVEL}rem)` : 'translateX(0)',
         }}

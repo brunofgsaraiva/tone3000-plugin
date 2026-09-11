@@ -1,5 +1,5 @@
 import React from 'react';
-import { rem } from '../hooks/useUiScale';
+import { IS_PHONE, rem } from '../hooks/useUiScale';
 import { Undo2, Redo2 } from './icons';
 import { AccountMenu } from './AccountMenu';
 import { IconButton } from './IconButton';
@@ -12,6 +12,20 @@ import type { ActivePreset } from '../types/chain';
 import type { User } from '../types/tone';
 
 type PresetStore = ReturnType<typeof usePresets>;
+
+/** Top bar height in design px. The phone runs a shorter one and scales the
+    bar's own content with it (smaller mark, narrower preset pill), so the 16
+    design px it gives up go to the chain lane instead (see useUiScale /
+    IS_PHONE). Same controls, same order, on both. */
+const HEADER_HEIGHT = 64;
+const HEADER_HEIGHT_PHONE = 48;
+const headerHeight = (): number => (IS_PHONE ? HEADER_HEIGHT_PHONE : HEADER_HEIGHT);
+/** The T3K wordmark, 210:32, so the phone's is 18 design px tall. */
+const MARK_WIDTH = 160;
+const MARK_WIDTH_PHONE = 116;
+/** Gap between header items; tight pairs (undo/redo) group inside. */
+const ITEM_GAP = 40;
+const ITEM_GAP_PHONE = 22;
 
 // Lucide has no tuning fork, so this mimics its 24x24 stroke style.
 const TuningForkIcon: React.FC<{ size?: number }> = ({ size = 18 }) => (
@@ -78,7 +92,7 @@ export const PluginHeader = React.memo(function PluginHeader({
     <div
       style={{
         width: '100%',
-        height: '64rem',
+        height: `${headerHeight()}rem`,
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
@@ -95,10 +109,19 @@ export const PluginHeader = React.memo(function PluginHeader({
         rel="noopener noreferrer"
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '16rem' }}
       >
-        <img src="/t3k.svg" alt="T3K" style={{ width: '160rem' }} />
+        <img
+          src="/t3k.svg"
+          alt="T3K"
+          style={{ width: rem(IS_PHONE ? MARK_WIDTH_PHONE : MARK_WIDTH) }}
+        />
       </a>
-      {/* 40px between header items; tight pairs (undo/redo) group inside. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '40rem' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: rem(IS_PHONE ? ITEM_GAP_PHONE : ITEM_GAP),
+        }}
+      >
         <PresetBar
           active={activePreset}
           presets={presetStore.presets}

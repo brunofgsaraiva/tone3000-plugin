@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react';
-import { rem } from '../hooks/useUiScale';
+import { IS_PHONE, rem } from '../hooks/useUiScale';
 
 /**
  * Shared theme tokens. The palette is deliberately tiny: black surfaces,
@@ -40,6 +40,14 @@ export const TEXT_BOX_HEIGHT = 20;
     its companion trims. */
 export const KNOB_SIZE_PRIMARY = 48;
 export const KNOB_SIZE_SECONDARY = 36;
+
+/** The faceplate's own two footprints: the design sizes above everywhere
+    except on a phone, where the plate is 72 design px instead of 108 (see
+    Faceplate) and its knobs step down with it. Only the plate and the
+    stereo-image groups that sit on it read these; every other knob in the
+    app (chain tiles, EQ deck) keeps the design size on every platform. */
+export const plateKnobPrimary = (): number => (IS_PHONE ? 36 : KNOB_SIZE_PRIMARY);
+export const plateKnobSecondary = (): number => (IS_PHONE ? 28 : KNOB_SIZE_SECONDARY);
 
 /** The one dim applied to every disabled/off control in the app: powered-off
     groups (`.ui-off`), disabled buttons, unavailable cards. */
