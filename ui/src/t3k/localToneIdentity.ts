@@ -39,7 +39,7 @@ export interface NamIdentity {
 }
 
 /** At most this many tones get their models listed (one API call each). */
-export const MAX_CANDIDATE_TONES = 3;
+export const MAX_CANDIDATE_TONES = 10;
 
 /** Reads the identity a local block's active model carries, if any. */
 export function namIdentityOf(model: {

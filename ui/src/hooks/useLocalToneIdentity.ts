@@ -70,7 +70,7 @@ export function useLocalToneIdentity(
       const { client: t3k, refreshToneMetadata: refresh } = latest.current;
 
       const found = await t3k.searchTones(identity.name);
-      console.log('[lti] search', identity.name, found.data?.length ?? 0);
+      console.log('[lti] search', identity.name, found.data?.length ?? 0, JSON.stringify((found.data ?? []).map((t) => [t.id, t.user?.username, t.title])));
       for (const tone of pickCandidateTones(found.data ?? [], identity)) {
         const models = await t3k.listModels(tone.id, { architecture: 2, pageSize: 100 });
         const candidate = pickModel(models.data ?? [], identity);
