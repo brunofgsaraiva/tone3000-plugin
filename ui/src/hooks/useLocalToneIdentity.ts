@@ -69,11 +69,20 @@ export function useLocalToneIdentity(
 
       const { client: t3k, refreshToneMetadata: refresh } = latest.current;
 
+      for (const q of [identity.name, 'JT45RS', 'MRSH JT45RS', 'Crunch BAL2 CAB', 'BAL2 CAB', 'amalgamaudio']) {
+        try {
+          const r = await t3k.searchTones(q, 50);
+          console.log('[lti] q', q, r.data?.length ?? 0, JSON.stringify((r.data ?? []).map((t) => [t.id, t.user?.username, t.title])));
+        } catch (e) {
+          console.log('[lti] q err', q, String(e));
+        }
+      }
       const found = await t3k.searchTones(identity.name);
       console.log('[lti] search', identity.name, found.data?.length ?? 0, JSON.stringify((found.data ?? []).map((t) => [t.id, t.user?.username, t.title])));
       for (const tone of pickCandidateTones(found.data ?? [], identity)) {
         const models = await t3k.listModels(tone.id, { architecture: 2, pageSize: 100 });
         const candidate = pickModel(models.data ?? [], identity);
+        console.log('[lti] model0', JSON.stringify(models.data?.[0] ?? null).slice(0, 600));
         console.log('[lti] tone', tone.id, 'models', models.data?.length ?? 0, 'candidate', candidate?.model_url);
         if (!candidate?.model_url?.startsWith(T3K_API)) continue;
 
