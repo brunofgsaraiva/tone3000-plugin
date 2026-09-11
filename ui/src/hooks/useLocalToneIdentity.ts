@@ -40,6 +40,7 @@ export function useLocalToneIdentity(
 
   useEffect(() => {
     if (!authenticated) return;
+    console.log('[lti] effect', chain.length, chainRight?.length ?? 0);
 
     // A local single-file block with no artwork yet. Keyed by the model's
     // stash URL, which is content-addressed: swapping a different file into
@@ -63,35 +64,43 @@ export function useLocalToneIdentity(
       const model = block.tone.models[0];
       const identity = namIdentityOf(model);
       const address = model.model_url ? stashAddressOf(model.model_url) : null;
+      console.log('[lti] resolve', block.blockId, model.model_url, JSON.stringify(identity), address);
       if (!identity || !address) return;
 
       const { client: t3k, refreshToneMetadata: refresh } = latest.current;
 
       const found = await t3k.searchTones(identity.name);
+      console.log('[lti] search', identity.name, found.data?.length ?? 0);
       for (const tone of pickCandidateTones(found.data ?? [], identity)) {
         const models = await t3k.listModels(tone.id, { architecture: 2, pageSize: 100 });
         const candidate = pickModel(models.data ?? [], identity);
+        console.log('[lti] tone', tone.id, 'models', models.data?.length ?? 0, 'candidate', candidate?.model_url);
         if (!candidate?.model_url?.startsWith(T3K_API)) continue;
 
         // The proof: the catalog's bytes are this file's bytes. Downloaded
         // through the client so the Bearer rides along (the endpoint
         // redirects to public storage once authorized).
         const res = await t3k.fetch(candidate.model_url.slice(T3K_API.length));
+        console.log('[lti] fetch', res.status, res.ok);
         if (!res.ok) continue;
         const bytes = new Uint8Array(await res.arrayBuffer());
-        if (!bytesMatchStash(bytes, address)) continue;
+        const match = bytesMatchStash(bytes, address);
+        console.log('[lti] bytes', bytes.length, 'match', match);
+        if (!match) continue;
 
+        console.log('[lti] adopt', tone.id);
         refresh(adoptedToneJson(tone), block.blockId);
         return;
       }
     };
 
+    console.log('[lti] pending', pending.length);
     for (const block of pending) {
       attempted.current.add(block.tone.models[0].model_url!);
       resolve(block).catch((err) => {
         // Offline, signed out mid-flight, tone gone private: the block keeps
         // its file glyph and plays exactly as before.
-        console.debug('Local tone identity lookup skipped', err);
+        console.log('[lti] skipped', String(err));
       });
     }
   }, [chain, chainRight, authenticated]);
