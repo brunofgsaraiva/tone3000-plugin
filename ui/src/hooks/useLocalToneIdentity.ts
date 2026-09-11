@@ -95,6 +95,11 @@ export function useLocalToneIdentity(
     };
 
     console.log('[lti] pending', pending.length);
+    for (const item of [...chain, ...(chainRight ?? [])]) {
+      if (isInsertSlot(item)) continue;
+      const t = item.tone;
+      console.log('[lti] block', item.blockId, 'local', t.local, 'img', !!t.images?.[0], 'models', t.models?.length, 'url', t.models?.[0]?.model_url, 'nam', t.models?.[0]?.nam_name, 'tried', !!(t.models?.[0]?.model_url && attempted.current.has(t.models[0].model_url)));
+    }
     for (const block of pending) {
       attempted.current.add(block.tone.models[0].model_url!);
       resolve(block).catch((err) => {
