@@ -9,8 +9,8 @@ GalleryTile::GalleryTile(Services& services, std::string blockId, int size)
     : services_(services), blockId_(std::move(blockId)), size_(size) {
   setSize(size, size);
   setMouseCursor(juce::MouseCursor::PointingHandCursor);
-  // A touch drag on a tile sorts it; only the gaps around the tiles pan the
-  // chain view.
+  // A touch drag on a tile sorts it; the gaps around the tiles, and a quick
+  // sideways flick on one (see mouseDrag), pan the chain view.
   setViewportIgnoreDragFlag(true);
   // Sortable tiles are focusable (keyboard sorting) but draw no focus ring,
   // as the web didn't.
@@ -73,6 +73,8 @@ void GalleryTile::closeMenu() {
 void GalleryTile::mouseDown(const juce::MouseEvent& e) {
   const auto now = juce::Time::currentTimeMillis();
   dragging_ = false;
+  flicking_ = false;
+  setViewportIgnoreDragFlag(true);
   pressAt_ = e.getPosition();
 
   // Right-click / ctrl-click: the action sheet, and the click that follows
@@ -98,6 +100,7 @@ void GalleryTile::mouseDrag(const juce::MouseEvent& e) {
     if (auto* h = host()) h->tileDragMove(e);
     return;
   }
+  if (flicking_) return;  // the scroller is panning
   const auto travel = e.getPosition() - pressAt_;
   if (hold_.pending() &&
       (std::abs(travel.x) > kLongPressSlop || std::abs(travel.y) > kLongPressSlop))
@@ -108,12 +111,26 @@ void GalleryTile::mouseDrag(const juce::MouseEvent& e) {
   // already opened yields to it.
   closeMenu();
   hold_.cancel();
+  // A quick, mostly sideways touch is a flick: clear the ignore flag and the
+  // lane's scroller (juce::Viewport re-checks it on every drag event) takes
+  // the gesture, momentum included.
+  if (e.source.isTouch() && design::kCoarsePointer && e.getLengthOfMousePress() <= kFlickMaxMs &&
+      std::abs(travel.x) >= 2 * std::abs(travel.y)) {
+    flicking_ = true;
+    setViewportIgnoreDragFlag(false);
+    return;
+  }
   dragging_ = true;
   if (auto* h = host()) h->tileDragStart(*this, e);
 }
 
 void GalleryTile::mouseUp(const juce::MouseEvent& e) {
   hold_.cancel();
+  if (flicking_) {
+    flicking_ = false;
+    setViewportIgnoreDragFlag(true);
+    return;
+  }
   if (dragging_) {
     dragging_ = false;
     if (auto* h = host()) h->tileDragEnd(e);

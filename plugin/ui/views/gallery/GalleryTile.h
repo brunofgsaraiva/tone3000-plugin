@@ -74,6 +74,11 @@ protected:
 private:
   static constexpr int kLongPressMs = 500;
   static constexpr int kLongPressSlop = 5;
+  // Coarse pointer: a touch that crosses the drag distance this quickly, and
+  // mostly sideways, is a flick that pans the lane rather than a tile drag
+  // (the webview left fast swipes to WKWebView's scroll). A slower start
+  // still picks the tile up, and the held touch still opens the sheet.
+  static constexpr int kFlickMaxMs = 120;
   // Real px the menu drops below the touch point (the release must land
   // outside it, and the sheet stays readable past the fingertip).
   static constexpr int kLongPressMenuDrop = 24;
@@ -91,6 +96,7 @@ private:
   bool travelling_ = false;
   bool dropArmed_ = false;
   bool dragging_ = false;
+  bool flicking_ = false;  // this touch handed the pan to the lane's scroller
   juce::Point<int> pressAt_;
   juce::int64 suppressClickUntilMs_ = 0;
   juce::int64 menuDismissedMs_ = 0;
